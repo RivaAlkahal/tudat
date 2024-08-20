@@ -47,7 +47,15 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
             add_library(Boost::${_TUDAT_BOOST_COMPONENT} UNKNOWN IMPORTED ../tests/src/simulation/unitTestPolyhedron.cpp
                     ../tests_riva/unitTestMarsDtm.cpp
                     ../tests_riva/unitTestMarsDtm.cpp
-                    ../tests_riva/unitTestMarsDtm.cpp)
+                    ../tests_riva/unitTestMarsDtm.cpp
+                    ../tests_riva/testEstimationVariations.cpp
+                    ../tests_riva/oldtest.cpp
+                    ../tests_riva/newtest.cpp
+                    ../tests_riva/multiarc-trial2.cpp
+                    ../tests_riva/multiarc-trial3.cpp
+                    ../tests_riva/multiarc-trial3.cpp
+                    ../tests_riva/multiarc-observ.cpp
+            )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES
                 INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}")

@@ -6,3 +6,27 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm2
         "TestMarsDtm_.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm3
+        "testEstimationVariations.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm4
+        "newtest.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm5
+        "oldtest.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm6
+        "multiarc-trial2.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm7
+        "multiarc-trial3.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm8
+        "multiarc-observ.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
