@@ -55,6 +55,12 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/multiarc-trial3.cpp
                     ../tests_riva/multiarc-trial3.cpp
                     ../tests_riva/multiarc-observ.cpp
+                    ../tests_riva/singlearcprop-multiarcest.cpp
+                    ../tests_riva/single-multiarc-onewaydoppler.cpp
+                    ../tests_riva/doppler-multiarc-drag.cpp
+                    ../tests_riva/twowaydoppler.cpp
+                    ../tests_riva/testobservations.cpp
+                    ../tests_riva/propagation_polynomial.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

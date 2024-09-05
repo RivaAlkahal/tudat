@@ -30,3 +30,27 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm8
         "multiarc-observ.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm9
+        "singlearcprop-multiarcest.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm10
+        "single-multiarc-onewaydoppler.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm11
+        "doppler-multiarc-drag.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm12
+        "twowaydoppler.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm13
+        "testobservations.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm14
+        "propagation_polynomial.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)

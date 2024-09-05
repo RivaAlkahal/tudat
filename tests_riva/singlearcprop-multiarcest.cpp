@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 23/08/2024.
+//
+//
 // Created by Riva Alkahal on 19/08/2024.
 //
 //
@@ -95,10 +98,6 @@ int main( ) {
     std::cout<<"Total duration: "<<totalDuration<<std::endl;
     double hoursperday = 10.0;
 
-    // Define bodies to use.
-    //std::vector< std::string > bodiesToCreate = {
-    //        "Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Phobos", "Deimos",
-    //        "Io", "Ganymede", "Callisto", "Europa", "Titan" };
     std::vector< std::string > bodiesToCreate = {
             "Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Phobos", "Deimos" };
 
@@ -346,14 +345,39 @@ int main( ) {
 
     std::cout<<"Integration settings created"<<std::endl;
 
-    // start multi arc propagation
+    // start global propagation
+    Eigen::Matrix< double, 6, 1 > spacecraftInitialState =
+            bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] ) -
+            bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] );
+
+    // Create termination settings
+    std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
+            integrationEndTime );
+
+    // Create propagation settings
+    std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
+                      spacecraftInitialState, integrationArcStartTimes[0], integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
+
+    SingleArcDynamicsSimulator< > dynamicsSimulator(
+            bodies, propagatorSettings );
+
+    std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+    std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
+
+    writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
+                            "", 18, 18 );
+    writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
+                            "", 18, 18 );
+
+    // create multi arc propagation settings
     int numberOfIntegrationArcs = integrationArcStartTimes.size( );
-    for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ ) {
+    /*for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ ) {
         std::cout << "integration arc start times"<<integrationArcStartTimes.at(i) << std::endl;
         std::cout << "integration arc end times"<<integrationArcEndTimes.at(i) << std::endl;
-    }
+    }*/
     std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
-    std::vector< Eigen::VectorXd > systemInitialStates(numberOfIntegrationArcs, Eigen::VectorXd(6));
+    //std::vector< Eigen::VectorXd > systemInitialStates(numberOfIntegrationArcs, Eigen::VectorXd(6));
+    std::map< double, Eigen::VectorXd > stateVectorsAtStartTimes;
 
     std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
     for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
@@ -362,13 +386,24 @@ int main( ) {
         std::cout<<i<<std::endl;
         std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
         std::cout<<integrationArcStartTimes.at(i)<<std::endl;
-        systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
-                bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
+        // get system initial states from the global propagation
+        // Check if the start time exists in the integration results
+        if (integrationResult.find( integrationArcStartTimes.at(i)) != integrationResult.end())
+        {
+            // Store the state vector at the start time
+            stateVectorsAtStartTimes[ integrationArcStartTimes.at(i)] = integrationResult[ integrationArcStartTimes.at(i)];
+        }
+        else
+        {
+            std::cerr << "Start time " <<  integrationArcStartTimes.at(i) << " not found in integration results." << std::endl;
+        }
+        //systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
+        //        bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
         std::cout<<"system initial states created"<<std::endl;
         arcPropagationSettingsList.push_back(
                 std::make_shared< TranslationalStatePropagatorSettings< double > >
                         ( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                          systemInitialStates.at( i ), integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
+                          stateVectorsAtStartTimes[ integrationArcStartTimes.at(i)], integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
     }
 
     std::cout<<"single arc propagation done"<<std::endl;
@@ -386,18 +421,18 @@ int main( ) {
     // multiArcPropagatorSettings->getOutputSettings( )->resetAndApplyConsistentSingleArcPrintSettings(
     //        multiArcPrintSettings );
 
-    MultiArcDynamicsSimulator< > dynamicsSimulator(
-            bodies, multiArcPropagatorSettings );
+   // MultiArcDynamicsSimulator< > dynamicsSimulator(
+   //         bodies, multiArcPropagatorSettings );
 
-    std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
-    for ( Time t : observationTimes )
-    {
-        propagatedStateHistory[ t.getSeconds< long double >() ] =
-                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
-                bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
-    }
-    writeDataMapToTextFile( propagatedStateHistory, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
+    //std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
+    //for ( Time t : observationTimes )
+    //{
+    //    propagatedStateHistory[ t.getSeconds< long double >() ] =
+    //           bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
+    //           bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
+    //}
+    //writeDataMapToTextFile( propagatedStateHistory, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
+    //                        "", 18, 18 );
 
 
     //initial state?
@@ -498,12 +533,12 @@ int main( ) {
     std::cout<<"Observation viability settings created"<<std::endl;
 
     //std::vector< std::shared_ptr< ObservationViabilityCalculator > > viabilityCalculators;
-   // for (unsigned int i = 0; i<stationTransmitterLinkEnds.size(); i++) {
+    // for (unsigned int i = 0; i<stationTransmitterLinkEnds.size(); i++) {
 
     //    viabilityCalculators.push_back(
-   //             std::vector< std::shared_ptr< ObservationViabilityCalculator > >(createObservationViabilityCalculators( bodies, stationTransmitterLinkEnds[i], one_way_range, observationViabilitySettings )));
+    //             std::vector< std::shared_ptr< ObservationViabilityCalculator > >(createObservationViabilityCalculators( bodies, stationTransmitterLinkEnds[i], one_way_range, observationViabilitySettings )));
 
-   // }
+    // }
     std::vector< std::shared_ptr< ObservationViabilityCalculator > > viabilityCalculators;
     for (unsigned int i = 0; i < stationTransmitterLinkEnds.size(); i++) {
         std::vector< std::shared_ptr< ObservationViabilityCalculator > > calculators =
@@ -691,7 +726,7 @@ int main( ) {
     // Retrieve the best iteration simulation results
     //std::shared_ptr< propagators::SimulationResults< long double, double > > postFitSimulationResults =
     //        estimationOutput->getBestIterationSimulationResults( );
-   // parametersToEstimate->resetParameterValues(estimationOutput->parameterHistory_.at(estimationOutput->bestIteration_));
+    // parametersToEstimate->resetParameterValues(estimationOutput->parameterHistory_.at(estimationOutput->bestIteration_));
     //finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
 
     std::shared_ptr<tudat::propagators::SimulationResults<double, double>> bestIterationOutput = estimationOutput->simulationResultsPerIteration_.at( estimationOutput->bestIteration_ );
@@ -718,7 +753,7 @@ int main( ) {
         // Retrieve the state history for the current arc
         //  std::map< Time, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic =
         //        std::dynamic_pointer_cast< SingleArcVariationalSimulationResults< long double, Time > >(
-         //               bestIterationSimulationResults )->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
+        //               bestIterationSimulationResults )->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
 
         // Append the state history to the concatenated map
         for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
