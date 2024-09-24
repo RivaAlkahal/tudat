@@ -25,6 +25,7 @@
 #include "tudat/astro/gravitation/polynomialGravityFieldVariations.h"
 #include "tudat/astro/orbit_determination/estimatable_parameters/estimatableParameter.h"
 #include "tudat/astro/gravitation/periodicGravityFieldVariations.h"
+#include "tudat/astro/gravitation/tabulatedGravityFieldVariations.h"
 
 namespace tudat
 {
@@ -423,6 +424,198 @@ protected:
 
 };
 
+
+class TabulatedGravityFieldVariationsParameters: public EstimatableParameter< Eigen::VectorXd >
+{
+
+public:
+    //! Constructor.
+    /*!
+     *  Constructor taking parameter name and associated body. All parameters are identified by a these two variables.
+     *  Any additional information that may be required for uniquely defining a parameter is to be defined in the derived class.
+     *  \param parameterName Enum value defining the type of the parameter.
+     *  \param associatedBody Name of body associated with patameters
+     *  \param pointOnBodyId Reference point on body associated with parameter (empty by default).
+     */
+    TabulatedGravityFieldVariationsParameters(
+        const std::shared_ptr< gravitation::TabulatedGravityFieldVariations > tabulatedVariationModel,
+        const std::vector< std::pair< int, int > > & cosineBlockIndices,
+        const std::vector< std::pair< int, int > > & sineBlockIndices,
+        const std::vector<double> & timeValues,
+        const std::string& bodyName ):
+        EstimatableParameter< Eigen::VectorXd >( piece_wise_tabulated_gravity_field_variation_amplitudes, bodyName ),
+        tabulatedVariationModel_( tabulatedVariationModel ), timeValues_( timeValues )
+        {
+            std::map< double, Eigen::MatrixXd > cosineVariations = tabulatedVariationModel->getCosineCoefficientCorrections( );
+            int cosineIndexCounter = 0;
+            for( unsigned int i = 0; i < cosineBlockIndices.size( ); i++ )
+            {
+                if( cosineBlockIndices.at( i ).first > tabulatedVariationModel_->getMaximumDegree( ) || cosineBlockIndices.at( i ).first < tabulatedVariationModel_->getMinimumDegree( ) )
+                {
+                    throw std::runtime_error( "Error when estimating gravity field corrections of body " + bodyName +
+                                                  ", no cosine coefficient variation of degree " + std::to_string( cosineBlockIndices.at( i ).first ) + " found." );
+                }
+
+                if( cosineBlockIndices.at( i ).second > tabulatedVariationModel_->getMaximumOrder( ) ||
+                        cosineBlockIndices.at( i ).second < tabulatedVariationModel_->getMinimumOrder( ) )
+                {
+                    throw std::runtime_error( "Error when estimating gravity field corrections of body " + bodyName +
+                                                  ", no cosine coefficient variation of order " + std::to_string( cosineBlockIndices.at( i ).second ) + " found." );
+                }
+                cosineCorrectionIndices_.push_back( std::make_pair( cosineBlockIndices.at( i ).first, cosineBlockIndices.at( i ).second ) );
+                //indexAndPowerPerCosineBlockIndex_[ std::make_pair( it.second.at( i ).first, it.second.at( i ).second ) ].push_back(
+                //    std::make_pair( cosineIndexCounter, it.first ) );
+                cosineIndexCounter++;
+                }
+
+
+            std::map< double, Eigen::MatrixXd > sineVariations = tabulatedVariationModel_->getSineCoefficientCorrections( );
+            int sineIndexCounter = 0;
+            for( unsigned int i = 0; i < sineBlockIndices.size( ); i++ )
+            {
+                if( sineBlockIndices.at( i ).first > tabulatedVariationModel_->getMaximumDegree( ) ||
+                    sineBlockIndices.at( i ).first < tabulatedVariationModel_->getMinimumDegree( ) )
+                {
+                    throw std::runtime_error( "Error when estimating gravity field corrections of body " + bodyName +
+                                                  ", no sine coefficient variation of degree " + std::to_string( sineBlockIndices.at( i ).first ) + " found." );
+                }
+
+                if( sineBlockIndices.at( i ).second > tabulatedVariationModel_->getMaximumOrder( ) ||
+                    sineBlockIndices.at( i ).second < tabulatedVariationModel_->getMinimumOrder( ) )
+                {
+                    throw std::runtime_error( "Error when estimating gravity field polynomial corrections of body " + bodyName +
+                    ", no sine coefficient variation of order " + std::to_string( sineBlockIndices.at( i ).second ) + " found." );
+                }
+
+                sineCorrectionIndices_.push_back( std::make_pair( sineBlockIndices.at( i ).first, sineBlockIndices.at( i ).second ) );
+                //indexAndPowerPerSineBlockIndex_[ std::make_pair( it.second.at( i ).first, it.second.at( i ).second ) ].push_back(
+                //    std::make_pair( sineIndexCounter, it.first ) );
+                sineIndexCounter++;
+            }
+        timeValues_.push_back( std::numeric_limits< double >::max( ) );
+
+        // retrieve the cosine and sine variations at the time values
+        for (unsigned int i = 0; i < timeValues_.size(); i++) {
+            cosineCorrectionList_.push_back(cosineVariations[timeValues_.at(i)]);
+            sineCorrectionList_.push_back(sineVariations[timeValues_.at(i)]);
+        }
+
+        // create piecewise interpolator for the cosine and sine variations
+        cosineInterpolator_ = std::make_shared< interpolators::PiecewiseConstantInterpolator< double,  Eigen::MatrixXd>> ( timeValues_, cosineCorrectionList_ );
+        sineInterpolator_ = std::make_shared< interpolators::PiecewiseConstantInterpolator< double,  Eigen::MatrixXd>> ( timeValues_, sineCorrectionList_ );
+
+
+
+        }
+
+
+    //! Virtual destructor.
+    ~TabulatedGravityFieldVariationsParameters( ) { }
+
+    //! Pure virtual function to retrieve the value of the parameter
+    /*!
+     *  Pure virtual function to retrieve the value of the parameter
+     *  \return Current value of parameter.
+     */
+    Eigen::VectorXd getParameterValue( ) {
+        
+	Eigen::VectorXd tabulatedCorrections = Eigen::VectorXd::Zero( getParameterSize( ) );
+        for (unsigned int t = 0; t < timeValues_.size() - 1; t++) {
+            for( unsigned int i = 0; i < cosineCorrectionIndices_.size( ); i++ )
+            {
+                tabulatedCorrections( i ) = tabulatedVariationModel_->getCosineCoefficientCorrections( ).at( timeValues_.at( t ) )
+                    ( cosineCorrectionIndices_.at( i ).first - tabulatedVariationModel_->getMinimumDegree( ),
+                      cosineCorrectionIndices_.at( i ).second - tabulatedVariationModel_->getMinimumOrder( ) );
+            }
+
+            for( unsigned int i = 0; i < sineCorrectionIndices_.size( ); i++ )
+            {
+                tabulatedCorrections( i + cosineCorrectionIndices_.size( ) ) = tabulatedVariationModel_->getSineCoefficientCorrections( ).at( timeValues_.at( t ) )
+                    ( sineCorrectionIndices_.at( i ).first - tabulatedVariationModel_->getMinimumDegree( ),
+                      sineCorrectionIndices_.at( i ).second - tabulatedVariationModel_->getMinimumOrder( ) );
+            }
+	}
+        return tabulatedCorrections;
+    }
+
+    //! Pure virtual function to (re)set the value of the parameter.
+    /*!
+     *  Pure virtual function to (re)set the value of the parameter.
+     *  \param parameterValue to which the parameter is to be set.
+     */
+    void setParameterValue( const Eigen::VectorXd parameterValue )
+    {
+        if( parameterValue.rows( ) != getParameterSize( ) )
+        {
+            throw std::runtime_error( "Error when resetting polynomial gravity field variation parameter; sizes are incompatible" );
+        }
+        std::map< double, Eigen::MatrixXd > cosineVariations = tabulatedVariationModel_->getCosineCoefficientCorrections( );
+        std::map< double, Eigen::MatrixXd > sineVariations = tabulatedVariationModel_->getSineCoefficientCorrections( );
+	int currentParIndex = 0;
+	for (unsigned int t = 0; t < timeValues_.size() - 1; t++) {
+    	    for( unsigned int i = 0; i < cosineCorrectionIndices_.size( ); i++ )
+    	    {
+        	cosineVariations[ timeValues_.at( t ) ](  cosineCorrectionIndices_.at( i ).first  - tabulatedVariationModel_->getMinimumDegree( ),
+            	 cosineCorrectionIndices_.at( i ).second - tabulatedVariationModel_->getMinimumOrder( ) ) = parameterValue( currentParIndex + i );
+    	    }
+	    currentParIndex += cosineCorrectionIndices_.size() ;
+    	    for( unsigned int i = 0; i < sineCorrectionIndices_.size( ); i++ )
+    	    {
+        	sineVariations[ timeValues_.at( t ) ](  sineCorrectionIndices_.at( i ).first - tabulatedVariationModel_->getMinimumDegree( ),
+            	    sineCorrectionIndices_.at( i ).second - tabulatedVariationModel_->getMinimumOrder( ) ) =
+            	    parameterValue( i + currentParIndex );
+	    }
+	    currentParIndex += sineCorrectionIndices_.size() ;
+	}
+        tabulatedVariationModel_->resetCoefficientInterpolator( cosineVariations, sineVariations );
+        //tabulatedVariationModel_->resetSineAmplitudes( sineVariations );
+    }
+
+    //! Function to retrieve the size of the parameter
+    /*!
+     *  Pure virtual function to retrieve the size of the parameter (i.e. 1 for double parameters)
+     *  \return Size of parameter value.
+     */
+    int getParameterSize( )
+    {
+        return (cosineCorrectionIndices_.size( ) + sineCorrectionIndices_.size( ))*(timeValues_.size()-1);
+    }
+
+
+    std::shared_ptr< gravitation::TabulatedGravityFieldVariations > getTabulatedlVariationModel( )
+    {
+        return tabulatedVariationModel_;
+    }
+
+
+protected:
+
+    std::shared_ptr< gravitation::TabulatedGravityFieldVariations > tabulatedVariationModel_;
+
+    //! Times at which the arcs are to start (including end time at maximum double value).
+    std::vector< double > timeValues_;
+
+    //! Indices of cosine variations that are to be estimated per arc
+    std::vector<Eigen::MatrixXd > cosineCorrectionList_;
+    std::vector< Eigen::MatrixXd > sineCorrectionList_;
+
+    //! Indices of cosine variations that are to be estimated
+    std::vector< std::pair< int, int > > cosineCorrectionIndices_;
+
+    //! Indices of sine variations that are to be estimated
+    std::vector< std::pair< int, int > > sineCorrectionIndices_;
+
+    //! interpolator for the cosine variations
+    std::shared_ptr< interpolators::PiecewiseConstantInterpolator< double, Eigen::MatrixXd > > cosineInterpolator_;
+
+    //! interpolator for the sine variations
+    std::shared_ptr< interpolators::PiecewiseConstantInterpolator< double, Eigen::MatrixXd > > sineInterpolator_;
+
+    //std::map< std::pair< int, int >, std::vector< std::pair< int, int > > > indexAndPowerPerCosineBlockIndex_;
+
+    //std::map< std::pair< int, int >, std::vector< std::pair< int, int > > > indexAndPowerPerSineBlockIndex_;
+
+};
 } // namespace estimatable_parameters
 
 } // namespace tudat

@@ -156,6 +156,9 @@ std::string getParameterTypeString( const EstimatebleParametersEnum parameterTyp
     case periodic_gravity_field_variation_amplitudes:
         parameterDescription = " Periodic gravity field variations ";
         break;
+    case piece_wise_tabulated_gravity_field_variation_amplitudes:
+        parameterDescription = " Piece-wise tabulated gravity field variations ";
+        break;
     default:
         std::string errorMessage = "Error when getting parameter string, did not recognize parameter " +
                 std::to_string( parameterType );
@@ -318,6 +321,9 @@ bool isDoubleParameter( const EstimatebleParametersEnum parameterType )
     case periodic_gravity_field_variation_amplitudes:
         isDoubleParameter = false;
         break;
+    case piece_wise_tabulated_gravity_field_variation_amplitudes:
+        isDoubleParameter = false;
+        break;
     default:
         throw std::runtime_error( "Error, parameter type " + std::to_string( parameterType ) +
                                   " not found when getting parameter type" );
@@ -447,6 +453,9 @@ bool isParameterNonTidalGravityFieldVariationProperty( const EstimatebleParamete
         flag = true;
         break;
     case periodic_gravity_field_variation_amplitudes:
+        flag = true;
+        break;
+    case piece_wise_tabulated_gravity_field_variation_amplitudes:
         flag = true;
         break;
     default:

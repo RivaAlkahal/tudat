@@ -83,13 +83,13 @@ int main( ) {
     using namespace tudat::orbital_element_conversions;
 
     spice_interface::loadStandardSpiceKernels( );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/estimate/sod_assignments/mgs_map4.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/estimate/sod_assignments/mgs_map5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/estimate/sod_assignments/mgs_map6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/estimate/sod_assignments/mgs_map7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/estimate/sod_assignments/mgs_map8.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/testingestimation/";
+    std::string saveDirectory = "/home/ralkahal/new-tudat-tests/";
     std::string fileTag = "polygrav";
 
     // set input options
@@ -146,9 +146,11 @@ int main( ) {
 
     bodySettings.at( "Earth" )->groundStationSettings = getDsnStationSettings( );
 
-    std::string filename ="/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
-    bodySettings.at( "Mars" )->atmosphereSettings = marsDtmAtmosphereSettings( filename, 3378.0E3);
+    //std::string filename ="/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+    std::string filename ="/home/ralkahal/new-tudat-tests/dtm-mars";
 
+    bodySettings.at( "Mars" )->atmosphereSettings = marsDtmAtmosphereSettings( filename, 3378.0E3);
+    std::cout<<"atmospheric settings created"<<std::endl;
     // Set spherical harmonics gravity field
     // Create spacecraft
     std::string spacecraftName = "MGS";
@@ -168,12 +170,13 @@ int main( ) {
 
     }
 
+    std::cout<<"bodySettings of spacecraft created"<<std::endl;
     bodySettings.at( spacecraftName )->constantMass = 700.0;
     bodySettings.at( spacecraftName )->ephemerisSettings->resetMakeMultiArcEphemeris( true );
-
+    std::cout<<"creating gravity field variations"<<std::endl;
     // Set gravity field variations
     std::vector< std::shared_ptr< GravityFieldVariationSettings > > gravityFieldVariations;
-
+    std::cout<<"gravity field variation settings called"<<std::endl;
     // Set solid body tide gravity field variation
     std::vector< std::string > deformingBodies;
     deformingBodies.push_back( "Sun" );
@@ -193,7 +196,7 @@ int main( ) {
     std::vector< Eigen::MatrixXd > sineShAmplitudesCosineTime;
     std::vector< Eigen::MatrixXd > sineShAmplitudesSineTime;
     std::vector< double > frequencies;
-
+    std::cout<<"initialization of periodic grav vriaions done"<<std::endl;
     // Values from Mars GMM3_120_SHA, https://pds-geosciences.wustl.edu/mro/mro-m-rss-5-sdp-v1/mrors_1xxx/data/shadr/gmm3_120_sha.lbl
     cosineShAmplitudesCosineTime.push_back(
             ( Eigen::MatrixXd( 4, 3 )<<2.39E-9, 0.92E-10, 0.0,
@@ -206,8 +209,10 @@ int main( ) {
                     0.35E-10, 0.0, 0.0,
                     0.15E-9, 0.0, 0.0 ).finished( ) );
     cosineShAmplitudesCosineTime.push_back(
-            ( Eigen::MatrixXd( 4, 3 )<<0.53E-9, 0.13E-9, -0.51E-10,
-                    0.32E-9).finished( ) );
+            ( Eigen::MatrixXd( 4, 3 )<<0.53E-9, 0.0, 0.0,
+                    0.13E-9, 0.0, 0.0,
+                    -0.51E-10, 0.0, 0.0,
+                    0.32E-9, 0.0, 0.0).finished( ) );
 
     cosineShAmplitudesSineTime.push_back(
             ( Eigen::MatrixXd( 4, 3 )<<-0.83E-9, -1.68E-9, 0.0,
@@ -220,19 +225,21 @@ int main( ) {
                     -0.24E-10, 0.0, 0.0,
                     0.42E-9, 0.0, 0.0).finished( ) );
     cosineShAmplitudesSineTime.push_back(
-            ( Eigen::MatrixXd( 4, 1 )<<0.46E-9, 0.15E-9, -0.64E-10,
-                    -0.02E-09 ).finished( ) );
+            ( Eigen::MatrixXd( 4, 3 )<<0.46E-9, 0.0, 0.0,
+                    0.15E-9, 0.0, 0.0,
+                    -0.64E-10, 0.0, 0.0,
+                    -0.02E-09, 0.0, 0.0 ).finished( ) );
 
-    sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 1 ));
-    sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 1 ));
-    sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 1 ));
+    sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+    sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+    sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
 
-    sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 1 ));
-    sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 1 ));
-    sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 1 ));
+    sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+    sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+    sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
     frequencies.resize( 3 );
     frequencies = { 2*mathematical_constants::PI/(686.98*86400.0), 4*mathematical_constants::PI/(686.98*86400.0), 6*mathematical_constants::PI/(686.98*86400.0) };
-
+    std::cout<<"assigned values for the amplitudes"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > periodicGravityFieldVariations =
             std::make_shared< PeriodicGravityFieldVariationsSettings >(
                     cosineShAmplitudesCosineTime, cosineShAmplitudesSineTime, sineShAmplitudesCosineTime, sineShAmplitudesSineTime,
@@ -271,16 +278,16 @@ int main( ) {
 
     //scM/0.01
 
-    cosineAmplitudes[ 1 ]( 0, 0 ) = -1.73871738023640e-12/(365*24*3600);
+    cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
 
-    cosineAmplitudes[1](0,1) =1.83526161335626e-12/(365*24*3600);
-    cosineAmplitudes[1](0,2) = -2.29416809459079e-12/(365*24*3600);
-    cosineAmplitudes[1](1,0) = -1.96888593742833e-12/(365*24*3600);
-    cosineAmplitudes[1](1,1) = 3.64572599774489e-12/(365*24*3600);
-    cosineAmplitudes[1](1,2) = -1.99682320271527e-12/(365*24*3600);
-    cosineAmplitudes[1](1,3) = 1.19185562092185e-11/(365*24*3600);
-    cosineAmplitudes[1](2,0) = 4.33626663660650e-12/(365*24*3600);
-
+    cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
+    cosineAmplitudes[1](0,2) += -2.29416809459079e-12/(365*24*3600);
+    cosineAmplitudes[1](1,0) += -1.96888593742833e-12/(365*24*3600);
+    cosineAmplitudes[1](1,1) += 3.64572599774489e-12/(365*24*3600);
+    cosineAmplitudes[1](1,2) += -1.99682320271527e-12/(365*24*3600);
+    //cosineAmplitudes[1](1,3) += 1.19185562092185e-11/(365*24*3600);
+    cosineAmplitudes[1](2,0) += 4.33626663660650e-12/(365*24*3600);
+    std::cout<<"assigned values to cosine amplitde"<<std::endl;
     //samuelb 50years
 /*
     cosineAmplitudes[ 1 ]( 0, 0 ) = 2.64611514298544e-10/(365*24*3600);
@@ -317,6 +324,7 @@ int main( ) {
     sineAmplitudes[1](1,2) = 8.10801664003273e-13;
     sineAmplitudes[1](1,3) = -4.02014384239032e-12;
      */
+    std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
             std::make_shared< PolynomialGravityFieldVariationsSettings >(
                     cosineAmplitudes, sineAmplitudes, 0.0, 2, 0 );
@@ -547,17 +555,20 @@ int main( ) {
     Eigen::Matrix< double, 6, 1 > spacecraftInitialState =
             bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] ) -
             bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] );
+    std::cout<<"spacecraftinitilastate created"<<std::endl;
 
     // Create termination settings
     std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
             integrationEndTime );
-
+    std::cout<<"termination setting creatd"<<std::endl;
     // Create propagation settings
-    std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
+    std::shared_ptr< TranslationalStatePropagatorSettings< double> > propagatorSettings = translationalStatePropagatorSettings< double>( centralBodies, accelerationModelMap, bodiesToIntegrate,
                                                                                                                                                           spacecraftInitialState, integrationArcStartTimes[0], integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
+    std::cout<<"propagation settings created"<<std::endl;
 
     SingleArcDynamicsSimulator< > dynamicsSimulator(
             bodies, propagatorSettings );
+    std::cout<<"dynamic simulator"<<std::endl;
 
     std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
     std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );

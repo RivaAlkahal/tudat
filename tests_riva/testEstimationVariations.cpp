@@ -41,7 +41,7 @@
 
 #include "tudat/astro/ground_stations/transmittingFrequencies.h"
 
-
+/*
 int main( ) {
     using namespace tudat;
     using namespace aerodynamics;
@@ -113,7 +113,7 @@ int main( ) {
     //Time ephemerisTimeStepSpacecraft = Time( epehemeridesTimeStep );
     //Time bufferSpacecraft = Time( 10.0 * ephemerisTimeStepSpacecraft );
 
-    /*
+    
     BodyListSettings bodySettings;
     if ( useInterpolatedEphemerides )
     {
@@ -125,7 +125,7 @@ int main( ) {
     {
         bodySettings = getDefaultBodySettings( bodiesToCreate, baseFrameOrigin, baseFrameOrientation );
     }
-    */
+    
   //  bodySettings.at( "Earth" )->shapeModelSettings = fromSpiceOblateSphericalBodyShapeSettings( );
   //bodySettings.at( "Earth" )->rotationModelSettings = gcrsToItrsRotationModelSettings(
   //          basic_astrodynamics::iau_2006, baseFrameOrientation );
@@ -145,8 +145,8 @@ int main( ) {
 
     //getDefaultBodySettings( bodiesToCreate, initialEphemerisTime - buffer, finalEphemerisTime + buffer );
 
-    /*
-     * if ( useInterpolatedEphemerides )
+    
+     if ( useInterpolatedEphemerides )
     {
         bodySettings.at( spacecraftName )->ephemerisSettings =
                 std::make_shared< InterpolatedSpiceEphemerisSettings >(
@@ -159,7 +159,7 @@ int main( ) {
         bodySettings.at( spacecraftName )->ephemerisSettings =
                 std::make_shared< DirectSpiceEphemerisSettings >( baseFrameOrigin, baseFrameOrientation );
     }
-     */
+
 
     bodySettings.at( spacecraftName )->constantMass = 700.0;
 
@@ -455,3 +455,4 @@ int main( ) {
 
 }
 
+*/
