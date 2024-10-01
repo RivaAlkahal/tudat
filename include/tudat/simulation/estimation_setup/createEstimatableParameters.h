@@ -2132,15 +2132,35 @@ std::shared_ptr< estimatable_parameters::EstimatableParameter< Eigen::VectorXd >
                 {
                     throw std::runtime_error( "Error when creating tabulated gravity field variation parameter; associated gravity field model not found." );
                 }
-                std::shared_ptr< gravitation::TabulatedGravityFieldVariations > tabulatedVariaton  =
+                std::shared_ptr< gravitation::TabulatedGravityFieldVariations > tabulatedVariation  =
                     std::dynamic_pointer_cast< gravitation::TabulatedGravityFieldVariations >(
                         gravityFieldVariation.second  );
 
                 // Create parameter object
-                if( tabulatedVariaton != nullptr )
+                if( tabulatedVariation != nullptr )
                 {
+                    std::vector<double> timeValues = tabulatedVariation->getTabulatedTimes();
+                    if (gravityFieldVariationSettings->timeValues_.empty() ) {
+                        double minTime = gravityFieldVariationSettings->minTimeInstant_;
+                        double maxTime = gravityFieldVariationSettings->maxTimeInstant_;
+                        // check if timeValues are within the range
+                        for (double time : timeValues) {
+                            if (time < minTime || time > maxTime) {
+                                throw std::runtime_error("Error: Time value " + std::to_string(time) + " is out of the allowed range [" + std::to_string(minTime) + ", " + std::to_string(maxTime) + "]");
+                            }
+                            else
+                            {
+                                // create timeValues vector within the defined range
+                                if (time >= minTime && time <= maxTime) {
+                                    gravityFieldVariationSettings->timeValues_.push_back(time);
+                                }
+
+                            }
+
+                        }
+                    }
                     vectorParameterToEstimate = std::make_shared< TabulatedGravityFieldVariationsParameters >(
-                        tabulatedVariaton,
+                        tabulatedVariation,
                         gravityFieldVariationSettings->cosineBlockIndices_,
                         gravityFieldVariationSettings->sineBlockIndices_,
                         gravityFieldVariationSettings->timeValues_,

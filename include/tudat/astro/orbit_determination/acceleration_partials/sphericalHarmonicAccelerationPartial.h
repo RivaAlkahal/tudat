@@ -349,6 +349,13 @@ protected:
         const double referenceEpoch,
         Eigen::MatrixXd& partialDerivatives );
 
+    void wrtTabulatedGravityFieldVariations(
+        const std::vector< std::pair< int, int > >& cosineCoefficientsIndices,
+        const std::vector< std::pair< int, int > >& sineCoefficientsIndices,
+        const std::vector< std::vector< std::pair< int, double > > > timesPerCosineBlockIndex,
+        const std::vector< std::vector< std::pair< int, double > > > timesPerSineBlockIndex,
+        Eigen::MatrixXd& partialDerivatives );
+
     //! Function to calculate the partial of the acceleration wrt a set of cosine coefficients.
     /*!
      *  Function to calculate the partial of the acceleration wrt a set of cosine coefficients.

@@ -1035,30 +1035,43 @@ public:
 
 };
 
-    class TabulatedGravityFieldVariationEstimatableParameterSettings: public EstimatableParameterSettings
-    {
-    public:
+class TabulatedGravityFieldVariationEstimatableParameterSettings: public EstimatableParameterSettings
+{
+public:
 
-        //! Constructor
-        /*!
-         * Constructor
-         * \param associatedBody Body being deformed
-         * \param deformingBody Body causing deformed
-         */
-        TabulatedGravityFieldVariationEstimatableParameterSettings(
-            const std::string &associatedBody,
-            const std::vector<std::pair<int, int>>& cosineBlockIndices,
-            const std::vector<std::pair<int, int>>& sineBlockIndices ,
-            const std::vector<double> & timeValues ) :
-            EstimatableParameterSettings( associatedBody, piece_wise_tabulated_gravity_field_variation_amplitudes ),
-            cosineBlockIndices_( cosineBlockIndices ),
-            sineBlockIndices_( sineBlockIndices), timeValues_( timeValues ){ }
+    //! Constructor
+    /*!
+    * Constructor
+     * \param associatedBody Body being deformed
+     * \param deformingBody Body causing deformed
+    */
+    TabulatedGravityFieldVariationEstimatableParameterSettings(
+        const std::string &associatedBody,
+        const std::vector<std::pair<int, int>>& cosineBlockIndices,
+        const std::vector<std::pair<int, int>>& sineBlockIndices ,
+        const std::vector<double> & timeValues ) :
+        EstimatableParameterSettings( associatedBody, piece_wise_tabulated_gravity_field_variation_amplitudes ),
+        cosineBlockIndices_( cosineBlockIndices ),
+        sineBlockIndices_( sineBlockIndices), timeValues_( timeValues ), minTimeInstant_(TUDAT_NAN), maxTimeInstant_(TUDAT_NAN){ }
 
-        std::vector<std::pair<int, int> > cosineBlockIndices_;
-        std::vector<std::pair<int, int> > sineBlockIndices_;
-        std::vector<double>  timeValues_;
 
-    };
+
+    TabulatedGravityFieldVariationEstimatableParameterSettings(
+          const std::string &associatedBody,
+          const std::vector<std::pair<int, int>>& cosineBlockIndices,
+          const std::vector<std::pair<int, int>>& sineBlockIndices ,
+          const double & minTimeInstant,
+          const double & maxTimeInstant) :
+          EstimatableParameterSettings( associatedBody, piece_wise_tabulated_gravity_field_variation_amplitudes ),
+          cosineBlockIndices_( cosineBlockIndices ),
+          sineBlockIndices_( sineBlockIndices), minTimeInstant_(minTimeInstant), maxTimeInstant_(maxTimeInstant),timeValues_(std::vector<double>()){ }
+
+    std::vector<std::pair<int, int> > cosineBlockIndices_;
+    std::vector<std::pair<int, int> > sineBlockIndices_;
+    std::vector<double>  timeValues_;
+    double minTimeInstant_;
+    double maxTimeInstant_;
+};
 
 class CustomEstimatableParameterSettings: public EstimatableParameterSettings
 {

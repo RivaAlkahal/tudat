@@ -284,6 +284,33 @@ std::pair< std::function< void( Eigen::MatrixXd& ) >, int > SphericalHarmonicsGr
                 numberOfRows = parameter->getParameterSize( );
                 break;
             }
+            case piece_wise_tabulated_gravity_field_variation_amplitudes:
+            {
+                std::shared_ptr< TabulatedGravityFieldVariationsParameters > tabulatedVariationParameter =
+                    std::dynamic_pointer_cast< TabulatedGravityFieldVariationsParameters >( parameter );
+                //std::vector< std::pair< int, int > >  cosineCorrectionIndices = tabulatedVariationParameter->getCosineCorrectionIndex( );
+                //std::vector< std::pair< int, int > >  sineCorrectionIndices = tabulatedVariationParameter->getSineCorrectionIndex( );
+                std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > indexAndTimePerCosineBlockIndex =
+                    tabulatedVariationParameter->getIndexAndTimePerCosineBlockIndex( );
+                std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > indexAndTimePerSineBlockIndex =
+                    tabulatedVariationParameter->getIndexAndTimePerSineBlockIndex( );
+                //std::vector<double> timeValues = tabulatedVariationParameter->getTimeValues( );
+
+                /*partialFunction = std::bind( &SphericalHarmonicsGravityPartial::wrtTabulatedGravityFieldVariations, this,
+                    cosineCorrectionIndices,
+                    sineCorrectionIndices,
+                    timeValues,
+                    std::placeholders::_1 );
+                */
+                partialFunction = std::bind( &SphericalHarmonicsGravityPartial::wrtTabulatedGravityFieldVariations, this,
+                                             utilities::createVectorFromMapKeys( indexAndTimePerCosineBlockIndex ),
+                                             utilities::createVectorFromMapKeys( indexAndTimePerSineBlockIndex ),
+                                             utilities::createVectorFromMapValues( indexAndTimePerCosineBlockIndex ),
+                                             utilities::createVectorFromMapValues( indexAndTimePerSineBlockIndex ),
+                                             std::placeholders::_1 );
+                numberOfRows = parameter->getParameterSize( );
+                break;
+            }
             default:
                 break;
             }
@@ -557,6 +584,62 @@ void SphericalHarmonicsGravityPartial::wrtPeriodicGravityFieldVariations(
     }
 }
 
+void SphericalHarmonicsGravityPartial::wrtTabulatedGravityFieldVariations(
+    //const std::vector< std::pair< int, int > >& cosineBlockIndices,
+    //const std::vector< std::pair< int, int > >& sineBlockIndices,
+    //const std::vector< double >& timeValues,
+    const std::vector< std::pair< int, int > >& cosineBlockIndices,
+    const std::vector< std::pair< int, int > >& sineBlockIndices,
+    const std::vector< std::vector< std::pair< int, double > > > timesPerCosineBlockIndex,
+    const std::vector< std::vector< std::pair< int, double > > > timesPerSineBlockIndex,
+    Eigen::MatrixXd& partialDerivatives )
+{
+    Eigen::MatrixXd staticCosinePartialsMatrix = Eigen::MatrixXd::Zero( 3, cosineBlockIndices.size( ) );
+    Eigen::MatrixXd staticSinePartialsMatrix = Eigen::MatrixXd::Zero( 3, sineBlockIndices.size( ) );
+
+    calculateSphericalHarmonicGravityWrtCCoefficients(
+        bodyFixedSphericalPosition_, bodyReferenceRadius_( ), gravitationalParameterFunction_( ),
+        sphericalHarmonicCache_,
+        cosineBlockIndices, coordinate_conversions::getSphericalToCartesianGradientMatrix(
+            bodyFixedPosition_ ), fromBodyFixedToIntegrationFrameRotation_( ), staticCosinePartialsMatrix,
+        maximumDegree_, maximumOrder_ );
+
+    calculateSphericalHarmonicGravityWrtSCoefficients(
+        bodyFixedSphericalPosition_, bodyReferenceRadius_( ), gravitationalParameterFunction_( ),
+        sphericalHarmonicCache_,
+        sineBlockIndices, coordinate_conversions::getSphericalToCartesianGradientMatrix(
+            bodyFixedPosition_ ), fromBodyFixedToIntegrationFrameRotation_( ), staticSinePartialsMatrix,
+        maximumDegree_, maximumOrder_ );
+
+    partialDerivatives.setZero( );
+
+    int counter = 0;
+
+    for( unsigned int i = 0; i < timesPerCosineBlockIndex.size( ); i++ ) {
+        for( unsigned int j = 0; j < timesPerCosineBlockIndex.at( i ).size( ); j++ )
+        {
+            //Check start col and row
+            //check if the time is in the range of the tabulated values
+            partialDerivatives.block( 0,  timesPerCosineBlockIndex.at(i).at( j ).first, 3, 1 ) +=
+                    staticCosinePartialsMatrix.block( 0, i, 3, 1 ) *  ( currentTime_ - timesPerCosineBlockIndex.at(i).at( j ).second ) ;
+            //partialDerivatives.block( 0, 2 * powersPerCosineBlockIndex.at( i ).at( j ).first + 1, 3, 1 ) +=
+            //        staticCosinePartialsMatrix.block( 0, i, 3, 1 ) * std::sin( frequency * ( currentTime_ - referenceEpoch ) );
+            counter++;
+        }
+    }
+
+
+    for( unsigned int i = 0; i < timesPerCosineBlockIndex.size( ); i++ ) {
+        for( unsigned int j = 0; j < timesPerCosineBlockIndex.at( i ).size( ); j++ )
+        {
+            partialDerivatives.block( 0, timesPerSineBlockIndex.at(i).at( j ).first + counter , 3, 1 ) +=
+                    staticSinePartialsMatrix.block( 0, j, 3, 1 ) * ( currentTime_ - timesPerSineBlockIndex.at(i).at( j ).second) ;
+            //partialDerivatives.block( 0, 2 * ( powersPerSineBlockIndex.at( i ).at( j ).first + counter ) + 1, 3, 1 ) +=
+            //        staticSinePartialsMatrix.block( 0, i, 3, 1 ) * std::sin( frequency * ( currentTime_ - referenceEpoch ) );
+        }
+    }
+
+}
 
 //! Function to calculate the partial of the acceleration wrt a set of cosine coefficients.
 void SphericalHarmonicsGravityPartial::wrtCosineCoefficientBlock(

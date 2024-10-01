@@ -447,7 +447,7 @@ public:
         tabulatedVariationModel_( tabulatedVariationModel ), timeValues_( timeValues )
         {
             std::map< double, Eigen::MatrixXd > cosineVariations = tabulatedVariationModel->getCosineCoefficientCorrections( );
-            int cosineIndexCounter = 0;
+            cosineIndexCounter_ = 0;
             for( unsigned int i = 0; i < cosineBlockIndices.size( ); i++ )
             {
                 if( cosineBlockIndices.at( i ).first > tabulatedVariationModel_->getMaximumDegree( ) || cosineBlockIndices.at( i ).first < tabulatedVariationModel_->getMinimumDegree( ) )
@@ -463,14 +463,14 @@ public:
                                                   ", no cosine coefficient variation of order " + std::to_string( cosineBlockIndices.at( i ).second ) + " found." );
                 }
                 cosineCorrectionIndices_.push_back( std::make_pair( cosineBlockIndices.at( i ).first, cosineBlockIndices.at( i ).second ) );
-                //indexAndPowerPerCosineBlockIndex_[ std::make_pair( it.second.at( i ).first, it.second.at( i ).second ) ].push_back(
-                //    std::make_pair( cosineIndexCounter, it.first ) );
-                cosineIndexCounter++;
+                indexAndTimePerCosineBlockIndex_[ std::make_pair( cosineBlockIndices.at( i ).first, cosineBlockIndices.at( i ).second ) ].push_back(
+                    std::make_pair( cosineIndexCounter_, timeValues.at(i) ) );
+                cosineIndexCounter_++;
                 }
 
 
             std::map< double, Eigen::MatrixXd > sineVariations = tabulatedVariationModel_->getSineCoefficientCorrections( );
-            int sineIndexCounter = 0;
+            sineIndexCounter_ = 0;
             for( unsigned int i = 0; i < sineBlockIndices.size( ); i++ )
             {
                 if( sineBlockIndices.at( i ).first > tabulatedVariationModel_->getMaximumDegree( ) ||
@@ -488,9 +488,9 @@ public:
                 }
 
                 sineCorrectionIndices_.push_back( std::make_pair( sineBlockIndices.at( i ).first, sineBlockIndices.at( i ).second ) );
-                //indexAndPowerPerSineBlockIndex_[ std::make_pair( it.second.at( i ).first, it.second.at( i ).second ) ].push_back(
-                //    std::make_pair( sineIndexCounter, it.first ) );
-                sineIndexCounter++;
+                indexAndTimePerSineBlockIndex_[ std::make_pair( sineBlockIndices.at( i ).first, sineBlockIndices.at( i ).second ) ].push_back(
+                    std::make_pair( sineIndexCounter_, timeValues.at(i) ) );
+                sineIndexCounter_++;
             }
         timeValues_.push_back( std::numeric_limits< double >::max( ) );
 
@@ -503,8 +503,6 @@ public:
         // create piecewise interpolator for the cosine and sine variations
         cosineInterpolator_ = std::make_shared< interpolators::PiecewiseConstantInterpolator< double,  Eigen::MatrixXd>> ( timeValues_, cosineCorrectionList_ );
         sineInterpolator_ = std::make_shared< interpolators::PiecewiseConstantInterpolator< double,  Eigen::MatrixXd>> ( timeValues_, sineCorrectionList_ );
-
-
 
         }
 
@@ -580,8 +578,37 @@ public:
     {
         return (cosineCorrectionIndices_.size( ) + sineCorrectionIndices_.size( ))*(timeValues_.size()-1);
     }
+    int getCosineIndexCounter( ) {
+        return cosineIndexCounter_;
+    }
+    int getSineIndexCounter( ) {
+        return sineIndexCounter_;
+    }
 
+    std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > getIndexAndTimePerCosineBlockIndex( )
+    {
+        return indexAndTimePerCosineBlockIndex_;
+    }
 
+    std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > getIndexAndTimePerSineBlockIndex( )
+    {
+        return indexAndTimePerSineBlockIndex_;
+    }
+
+    std::vector< std::pair< int, int > >  getCosineCorrectionIndex( )
+    {
+        return cosineCorrectionIndices_;
+    }
+
+    std::vector< std::pair< int, int > >  getSineCorrectionIndex( )
+    {
+        return sineCorrectionIndices_;
+    }
+
+    std::vector< double>  getTimeValues( )
+    {
+        return timeValues_;
+    }
     std::shared_ptr< gravitation::TabulatedGravityFieldVariations > getTabulatedlVariationModel( )
     {
         return tabulatedVariationModel_;
@@ -605,15 +632,19 @@ protected:
     //! Indices of sine variations that are to be estimated
     std::vector< std::pair< int, int > > sineCorrectionIndices_;
 
+    // cosineIndexCounter
+    int cosineIndexCounter_;
+    int sineIndexCounter_;
+
     //! interpolator for the cosine variations
     std::shared_ptr< interpolators::PiecewiseConstantInterpolator< double, Eigen::MatrixXd > > cosineInterpolator_;
 
     //! interpolator for the sine variations
     std::shared_ptr< interpolators::PiecewiseConstantInterpolator< double, Eigen::MatrixXd > > sineInterpolator_;
 
-    //std::map< std::pair< int, int >, std::vector< std::pair< int, int > > > indexAndPowerPerCosineBlockIndex_;
+    std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > indexAndTimePerCosineBlockIndex_;
 
-    //std::map< std::pair< int, int >, std::vector< std::pair< int, int > > > indexAndPowerPerSineBlockIndex_;
+    std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > indexAndTimePerSineBlockIndex_;
 
 };
 } // namespace estimatable_parameters

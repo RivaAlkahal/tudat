@@ -113,6 +113,23 @@ public:
         return interpolatorType_;
     }
 
+    //! Function to return the time values to use in the creation of the estimatable parameters
+    /*!
+    *  Function to return type of interpolator to use for calculating coefficients at any time
+    *  between tabulated times.
+    * \return Type of interpolator to use for calculating coefficients
+    */
+    std::vector< double > getTabulatedTimes( )
+    {
+        std::vector< double > tabulatedTimes;
+        for( auto entry: cosineCoefficientCorrections_ )
+        {
+            tabulatedTimes.push_back( entry.first );
+        }
+        return tabulatedTimes;
+    }
+
+
 private:
 
     //! Type of interpolator to use for calculating coefficients at any time.
