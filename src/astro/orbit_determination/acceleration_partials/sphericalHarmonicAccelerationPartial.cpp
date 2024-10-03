@@ -294,6 +294,11 @@ std::pair< std::function< void( Eigen::MatrixXd& ) >, int > SphericalHarmonicsGr
                     tabulatedVariationParameter->getIndexAndTimePerCosineBlockIndex( );
                 std::map< std::pair< int, int >, std::vector< std::pair< int, double > > > indexAndTimePerSineBlockIndex =
                     tabulatedVariationParameter->getIndexAndTimePerSineBlockIndex( );
+                // Retrieve arc of current time.
+                std::shared_ptr< interpolators::LookUpScheme< double > > currentCosineArcIndexLookUp =
+                        tabulatedVariationParameter->getCosineArcTimeLookupScheme( );
+                std::shared_ptr< interpolators::LookUpScheme< double > > currentSineArcIndexLookUp =
+                        tabulatedVariationParameter->getSineArcTimeLookupScheme( );
                 //std::vector<double> timeValues = tabulatedVariationParameter->getTimeValues( );
 
                 /*partialFunction = std::bind( &SphericalHarmonicsGravityPartial::wrtTabulatedGravityFieldVariations, this,
@@ -307,6 +312,7 @@ std::pair< std::function< void( Eigen::MatrixXd& ) >, int > SphericalHarmonicsGr
                                              utilities::createVectorFromMapKeys( indexAndTimePerSineBlockIndex ),
                                              utilities::createVectorFromMapValues( indexAndTimePerCosineBlockIndex ),
                                              utilities::createVectorFromMapValues( indexAndTimePerSineBlockIndex ),
+                                             currentCosineArcIndexLookUp, currentSineArcIndexLookUp,
                                              std::placeholders::_1 );
                 numberOfRows = parameter->getParameterSize( );
                 break;
@@ -592,6 +598,8 @@ void SphericalHarmonicsGravityPartial::wrtTabulatedGravityFieldVariations(
     const std::vector< std::pair< int, int > >& sineBlockIndices,
     const std::vector< std::vector< std::pair< int, double > > > timesPerCosineBlockIndex,
     const std::vector< std::vector< std::pair< int, double > > > timesPerSineBlockIndex,
+    const std::shared_ptr< interpolators::LookUpScheme< double > > currentCosineIndexLookUp,
+    const std::shared_ptr< interpolators::LookUpScheme< double > > currentSineIndexLookUp,
     Eigen::MatrixXd& partialDerivatives )
 {
     Eigen::MatrixXd staticCosinePartialsMatrix = Eigen::MatrixXd::Zero( 3, cosineBlockIndices.size( ) );
@@ -616,26 +624,42 @@ void SphericalHarmonicsGravityPartial::wrtTabulatedGravityFieldVariations(
     int counter = 0;
 
     for( unsigned int i = 0; i < timesPerCosineBlockIndex.size( ); i++ ) {
-        for( unsigned int j = 0; j < timesPerCosineBlockIndex.at( i ).size( ); j++ )
-        {
+        //for( unsigned int j = 0; j < timesPerCosineBlockIndex.at( i ).size( ); j++ )
+        //{
+
             //Check start col and row
             //check if the time is in the range of the tabulated values
-            partialDerivatives.block( 0,  timesPerCosineBlockIndex.at(i).at( j ).first, 3, 1 ) +=
-                    staticCosinePartialsMatrix.block( 0, i, 3, 1 ) *  ( currentTime_ - timesPerCosineBlockIndex.at(i).at( j ).second ) ;
-            //partialDerivatives.block( 0, 2 * powersPerCosineBlockIndex.at( i ).at( j ).first + 1, 3, 1 ) +=
-            //        staticCosinePartialsMatrix.block( 0, i, 3, 1 ) * std::sin( frequency * ( currentTime_ - referenceEpoch ) );
-            counter++;
-        }
+            if( currentCosineIndexLookUp->getMinimumValue( ) <= currentTime_ )
+
+            {
+                int currentArc = currentCosineIndexLookUp->findNearestLowerNeighbour( currentTime_ );
+                partialDerivatives.block( 0,  timesPerCosineBlockIndex.at(i).at( currentArc ).first, 3, 1 ) +=
+                       staticCosinePartialsMatrix.block( 0, i, 3, 1 ) *  ( currentTime_ - timesPerCosineBlockIndex.at(i).at( currentArc ).second ) ;
+
+                //partialDerivatives.block( 0,  timesPerCosineBlockIndex.at(i).at( j ).first, 3, 1 ) +=
+                //       staticCosinePartialsMatrix.block( 0, i, 3, 1 ) *  ( currentTime_ - timesPerCosineBlockIndex.at(i).at( j ).second ) ;
+                //partialDerivatives.block( 0, 2 * powersPerCosineBlockIndex.at( i ).at( j ).first + 1, 3, 1 ) +=
+                //        staticCosinePartialsMatrix.block( 0, i, 3, 1 ) * std::sin( frequency * ( currentTime_ - referenceEpoch ) );
+                counter++;
+            }
+
+        //}
     }
 
 
-    for( unsigned int i = 0; i < timesPerCosineBlockIndex.size( ); i++ ) {
-        for( unsigned int j = 0; j < timesPerCosineBlockIndex.at( i ).size( ); j++ )
-        {
-            partialDerivatives.block( 0, timesPerSineBlockIndex.at(i).at( j ).first + counter , 3, 1 ) +=
-                    staticSinePartialsMatrix.block( 0, j, 3, 1 ) * ( currentTime_ - timesPerSineBlockIndex.at(i).at( j ).second) ;
+    for( unsigned int i = 0; i < timesPerSineBlockIndex.size( ); i++ ) {
+        //for( unsigned int j = 0; j < timesPerSineBlockIndex.at( i ).size( ); j++ )
+        //{
+        if( currentSineIndexLookUp->getMinimumValue( ) <= currentTime_ ) {
+            int currentArc = currentSineIndexLookUp->findNearestLowerNeighbour( currentTime_ );
+            partialDerivatives.block( 0, timesPerSineBlockIndex.at(i).at( currentArc ).first + counter , 3, 1 ) +=
+                    staticSinePartialsMatrix.block( 0, currentArc, 3, 1 ) * ( currentTime_ - timesPerSineBlockIndex.at(i).at( currentArc).second) ;
+
+            //partialDerivatives.block( 0, timesPerSineBlockIndex.at(i).at( j ).first + counter , 3, 1 ) +=
+            //        staticSinePartialsMatrix.block( 0, j, 3, 1 ) * ( currentTime_ - timesPerSineBlockIndex.at(i).at( j ).second) ;
             //partialDerivatives.block( 0, 2 * ( powersPerSineBlockIndex.at( i ).at( j ).first + counter ) + 1, 3, 1 ) +=
             //        staticSinePartialsMatrix.block( 0, i, 3, 1 ) * std::sin( frequency * ( currentTime_ - referenceEpoch ) );
+            //}
         }
     }
 

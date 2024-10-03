@@ -354,6 +354,8 @@ protected:
         const std::vector< std::pair< int, int > >& sineCoefficientsIndices,
         const std::vector< std::vector< std::pair< int, double > > > timesPerCosineBlockIndex,
         const std::vector< std::vector< std::pair< int, double > > > timesPerSineBlockIndex,
+        const std::shared_ptr< interpolators::LookUpScheme< double > > currentCosineIndexLookUp,
+        const std::shared_ptr< interpolators::LookUpScheme< double > > currentSineIndexLookUp,
         Eigen::MatrixXd& partialDerivatives );
 
     //! Function to calculate the partial of the acceleration wrt a set of cosine coefficients.

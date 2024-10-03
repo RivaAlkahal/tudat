@@ -613,7 +613,14 @@ public:
     {
         return tabulatedVariationModel_;
     }
-
+    std::shared_ptr< interpolators::LookUpScheme< double > > getCosineArcTimeLookupScheme( )
+    {
+        return cosineInterpolator_->getLookUpScheme( );
+    }
+    std::shared_ptr< interpolators::LookUpScheme< double > > getSineArcTimeLookupScheme( )
+    {
+        return sineInterpolator_->getLookUpScheme( );
+    }
 
 protected:
 
