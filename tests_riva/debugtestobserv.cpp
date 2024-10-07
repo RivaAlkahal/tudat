@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 05/10/2024.
+//
+//
 // Created by Riva Alkahal on 31/08/2024.
 //
 
@@ -88,12 +91,8 @@ int main( ) {
     double oneWayDopplerNoise = 0.0001;
     double twoWayDopplerNoise = 0.0001;
     double rangeNoise = 0.0001;
-    // Select ephemeris time range (based on available data in loaded SPICE ephemeris)
-    //Time initialEphemerisTime = Time( 185976000 - 1.0 * 86400.0 ); // 23 November 2005, 0h
-    //Time finalEphemerisTime = Time( 186580800 + 1.0 * 86400.0 ); // 30 November 2005, 0h
-    // time at 2000-01-01T00:00:00
     Time initialEphemerisTime = Time(0.0);
-    Time finalEphemerisTime = Time(86400.0 * 60.0); // 5 years later
+    Time finalEphemerisTime = Time(86400.0 * 360.0);
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout << "Total duration: " << totalDuration << std::endl;
 
@@ -206,7 +205,7 @@ int main( ) {
     std::cout << "periodic gravity field variation created" << std::endl;
 
     // Set polynomial gravity field variation
-    std::map<int, Eigen::MatrixXd> cosineAmplitudes;
+    /*std::map<int, Eigen::MatrixXd> cosineAmplitudes;
     cosineAmplitudes[1] = Eigen::Matrix<double, 4, 3>::Zero();
     //cosineAmplitudes[ 2 ] = Eigen::Matrix< double, 3, 5 >::Zero( );
     std::map<int, Eigen::MatrixXd> sineAmplitudes;
@@ -215,7 +214,7 @@ int main( ) {
             std::make_shared<PolynomialGravityFieldVariationsSettings>(
                     cosineAmplitudes, sineAmplitudes, 0.0, 2, 0);
     gravityFieldVariations.push_back(polynomialGravityFieldVariations);
-
+*/
     std::vector<std::shared_ptr<GravityFieldVariationSettings> > gravityFieldVariationSettings =
             gravityFieldVariations;
     bodySettings.at("Mars")->gravityFieldVariationSettings = gravityFieldVariations;
@@ -276,9 +275,7 @@ int main( ) {
     dependentVariablesToSave.push_back(
             std::make_shared<SingleDependentVariableSaveSettings>(
                     keplerian_state_dependent_variable, spacecraftName, centralBody));
-    dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
-            aerodynamic_force_coefficients_dependent_variable, spacecraftName, centralBody));
-    dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+        dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
             aerodynamic_force_coefficients_dependent_variable, spacecraftName, centralBody));
 
     std::cout << "dependent variables created" << std::endl;
@@ -678,8 +675,9 @@ int main( ) {
     file.close();
 
     std::cout<<"residuals saved"<<std::endl;
+
     int itr_number = 0;
-    for (const auto& iterationOutput : estimationOutput->simulationResultsPerIteration_) {
+    for (const auto& iterationOutput : estimationOutput->getSimulationResults()){ //simulationResultsPerIteration_) {
         auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(iterationOutput);
         //std::shared_ptr<tudat::propagators::SimulationResults<double, double>> bestIterationOutput = estimationOutput->simulationResultsPerIteration_.back();//estimationOutput->bestIteration_ );
         //auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(bestIterationOutput);

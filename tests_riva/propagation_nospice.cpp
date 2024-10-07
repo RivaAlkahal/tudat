@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 04/10/2024.
+//
+//
 // Created by Riva Alkahal on 03/09/2024.
 //
 //
@@ -88,20 +91,20 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
-*/
+
         spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
         spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5.bsp" );
         spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6.bsp" );
         spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7.bsp" );
         spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8.bsp" );
-
+        */
 
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "spiceprop1";
+    std::string fileTag = "nospice";
 
     // set input options
     double epehemeridesTimeStep = 60.0;
-    bool useInterpolatedEphemerides = true;
+    bool useInterpolatedEphemerides = false;
     double observationsSamplingTime = 60.0;
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 3*86400.0;//2.0E4;
@@ -121,7 +124,7 @@ int main( ) {
     //Time finalEphemerisTime = Time( 186580800 + 1.0 * 86400.0 ); // 30 November 2005, 0h
     // time at 2000-01-01T00:00:00
     Time initialEphemerisTime = Time( 0.0 ) ;
-    Time finalEphemerisTime = Time( 86400.0 * 60); // 5 years later
+    Time finalEphemerisTime = Time( 86400.0 * 360); // 5 years later
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout<<"Total duration: "<<totalDuration<<std::endl;
 
@@ -172,9 +175,10 @@ int main( ) {
     }
     else
     {
-       // bodySettings.at( spacecraftName )->ephemerisSettings =
-       //         std::make_shared< DirectSpiceEphemerisSettings >( baseFrameOrigin, baseFrameOrientation );
-
+        //bodySettings.at( spacecraftName )->ephemerisSettings =
+        //       std::make_shared< DirectSpiceEphemerisSettings >( baseFrameOrigin, baseFrameOrientation );
+            bodySettings.at( spacecraftName )->ephemerisSettings = std::make_shared<TabulatedEphemerisSettings>
+            (std::map< double, Eigen::Vector6d >(), baseFrameOrigin, baseFrameOrientation);
     }
 
     std::cout<<"bodySettings of spacecraft created"<<std::endl;
@@ -538,17 +542,17 @@ int main( ) {
         { }
     }
     // Retrieve state history from SPICE
-
+/*
     std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > spiceStateHistory;
     for ( Time t : observationTimes )
     {
         spiceStateHistory[ t.getSeconds< long double >() ] =
-                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t )-
-                        bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
+                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
+                bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
     }
     writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
                             "", 18, 18 );
-
+*/
     // Define integrator settings.
     //std::shared_ptr< IntegratorSettings< double > > integratorSettings =
     //        rungeKutta4Settings< double >( 60.0 );
@@ -559,9 +563,13 @@ int main( ) {
     std::cout<<"Integration settings created"<<std::endl;
 
     // start global propagation
-    Eigen::Matrix< double, 6, 1 > spacecraftInitialState =
+    Eigen::Matrix< double, 6, 1 > spacecraftInitialState;
+    spacecraftInitialState << -1058004.86077880859,116366.372375488281, -3595420.33442687988, -3113.27424413069639, 950.899628500708786, 938.480820752637783;
+           // [-1058004.86077880859,116366.372375488281	 -3595420.33442687988	 -3113.27424413069639	 950.899628500708786	 938.480820752637783];
+  /*  Eigen::Matrix< double, 6, 1 > spacecraftInitialState =
             bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] ) -
             bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] );
+*/
     std::cout<<"spacecraft initial  state created"<<std::endl;
 
     // Create termination settings

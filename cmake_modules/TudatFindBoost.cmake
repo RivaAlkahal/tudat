@@ -62,6 +62,8 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/testobservations.cpp
                     ../tests_riva/propagation_polynomial.cpp
                     ../tests/src/astro/orbit_determination/acceleration_partials/unitTestSphericalHarmonicPartials2.cpp
+                    ../tests_riva/propagation_nospice.cpp
+                    ../tests_riva/debugtestobserv.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

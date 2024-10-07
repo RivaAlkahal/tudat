@@ -54,3 +54,11 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm14
         "propagation_polynomial.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm15
+        "propagation_nospice.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm16
+        "debugtestobserv.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
