@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 07/10/2024.
+//
+//
 // Created by Riva Alkahal on 05/10/2024.
 //
 //
@@ -367,39 +370,9 @@ int main( ) {
                     ( rungeKutta4, integrationArcStartTimes.at(0), 60.0 );
 
     std::cout<<"Integration settings created"<<std::endl;
-
-    // start global propagation
-    Eigen::Matrix< double, 6, 1 > spacecraftInitialState =
-            bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] ) -
-            bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] );
-
-    // Create termination settings
-    std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
-            integrationEndTime );
-
-    // Create propagation settings
-    std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                                                                                                                                                          spacecraftInitialState, integrationArcStartTimes[0], integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
-
-    SingleArcDynamicsSimulator< > dynamicsSimulator(
-            bodies, propagatorSettings );
-
-    std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
-    std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
-
-    writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-    writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-
-    // create multi arc propagation settings
     int numberOfIntegrationArcs = integrationArcStartTimes.size( );
-    for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ ) {
-        std::cout << "integration arc start times"<<integrationArcStartTimes.at(i) << std::endl;
-        std::cout << "integration arc end times"<<integrationArcEndTimes.at(i) << std::endl;
-    }
-    std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
-    std::map< double, Eigen::VectorXd > stateVectorsAtStartTimes;
+
+    std::vector< Eigen::VectorXd > systemInitialStates(numberOfIntegrationArcs, Eigen::VectorXd(6));
 
     std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
     for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
@@ -408,22 +381,13 @@ int main( ) {
         std::cout<<i<<std::endl;
         std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
         std::cout<<integrationArcStartTimes.at(i)<<std::endl;
-        // get system initial states from the global propagation
-        // Check if the start time exists in the integration results
-        if (integrationResult.find( integrationArcStartTimes.at(i)) != integrationResult.end())
-        {
-            // Store the state vector at the start time
-            stateVectorsAtStartTimes[ integrationArcStartTimes.at(i)] = integrationResult[ integrationArcStartTimes.at(i)];
-        }
-        else
-        {
-            std::cerr << "Start time " <<  integrationArcStartTimes.at(i) << " not found in integration results." << std::endl;
-        }
+        systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
+                bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
         std::cout<<"system initial states created"<<std::endl;
         arcPropagationSettingsList.push_back(
                 std::make_shared< TranslationalStatePropagatorSettings< double > >
                         ( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                          stateVectorsAtStartTimes[ integrationArcStartTimes.at(i)], integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
+                          systemInitialStates.at( i ), integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
     }
 
     std::cout<<"single arc propagation done"<<std::endl;
@@ -431,6 +395,30 @@ int main( ) {
             validateDeprecatedMultiArcSettings< double, double >(
                     integratorSettings, std::make_shared< MultiArcPropagatorSettings< double > >( arcPropagationSettingsList ),
                     integrationArcStartTimes, false, true );
+
+    MultiArcDynamicsSimulator< > dynamicsSimulator(
+            bodies, multiArcPropagatorSettings );
+
+    std::map< double, Eigen::VectorXd > integrationResult;
+    for ( unsigned int arcIndex = 0; arcIndex < numberOfIntegrationArcs; ++arcIndex ) {
+        dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
+                            arcIndex )->getEquationsOfMotionNumericalSolution( );
+       // std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+       // std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
+    }
+    writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
+                            "", 18, 18 );
+    //writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
+    //                        "", 18, 18 );
+
+    // create multi arc propagation settings
+    for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ ) {
+        std::cout << "integration arc start times"<<integrationArcStartTimes.at(i) << std::endl;
+        std::cout << "integration arc end times"<<integrationArcEndTimes.at(i) << std::endl;
+    }
+    std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
+    std::map< double, Eigen::VectorXd > stateVectorsAtStartTimes;
+
 
     std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
             getInitialMultiArcParameterSettings< double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );

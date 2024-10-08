@@ -62,3 +62,7 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm16
         "debugtestobserv.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm17
+        "debug-multiarcpro.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
