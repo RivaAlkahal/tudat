@@ -1,3 +1,9 @@
+// last run on 2024-10-17
+// Created by Riva Alkahal on 09/10/2024.
+//
+//
+// Created by Riva Alkahal on 08/10/2024.
+//
 //
 // Created by Riva Alkahal on 07/10/2024.
 //
@@ -83,7 +89,7 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8_ipng_mgs95j.bsp" );
 
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "newspice";
+    std::string fileTag = "observspice-RK78-multiarc-drag-noap-per-arc-emprconst";
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -91,11 +97,11 @@ int main( ) {
     double observationsSamplingTime = 60.0;
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 3.0 * 86400.0;//2.0E4;
-    std::string dragEst = "per-halfday";//"per-rev";
-    double ndays = 1.0;
-    double hoursperdaydrag = 1.0;
+    std::string dragEst = "per-arc";//"per-rev";
+    double ndays = 3.0;
+    double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
-    int iterationNumber = 6;
+    int iterationNumber = 5;
     //const double gravitationalParameter = 4.2828378e13;
     //const double planetaryRadius = 3389.5E3;
 
@@ -233,7 +239,7 @@ int main( ) {
     SystemOfBodies bodies = createSystemOfBodies<long double, Time>(bodySettings);
 
     // Create radiation pressure settings
-    double referenceAreaRadiation = 4.0;
+    double referenceAreaRadiation = 10.0;
     double radiationPressureCoefficient = 1.2;
     std::vector<std::string> occultingBodies = {"Mars"};
     std::shared_ptr<RadiationPressureInterfaceSettings> radiationPressureSettings =
@@ -248,7 +254,7 @@ int main( ) {
     // Create aerodynamic coefficients settings
     Eigen::Vector3d customVector(1.2, 0.0, 0.0);
     std::shared_ptr<AerodynamicCoefficientSettings> aerodynamicCoefficientSettings =
-            std::make_shared<ConstantAerodynamicCoefficientSettings>(4.0, 1.2 * Eigen::Vector3d::UnitX());
+            std::make_shared<ConstantAerodynamicCoefficientSettings>(10.0, 1.2 * Eigen::Vector3d::UnitX());
     bodies.at(spacecraftName)->setAerodynamicCoefficientInterface(
             createAerodynamicCoefficientInterface(aerodynamicCoefficientSettings, spacecraftName, bodies));
 
@@ -262,11 +268,17 @@ int main( ) {
     accelerationsOfVehicle["Venus"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Earth"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Mars"].push_back(sphericalHarmonicAcceleration(50, 50));
-    //accelerationsOfVehicle["Mars"].push_back(relativisticAccelerationCorrection());
+    accelerationsOfVehicle["Mars"].push_back(relativisticAccelerationCorrection());
     accelerationsOfVehicle["Mars"].push_back(aerodynamicAcceleration());
     accelerationsOfVehicle["Phobos"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Deimos"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Jupiter"].push_back(pointMassGravityAcceleration());
+
+    //double empiricalAccelerationNorm = 1.0E-6;
+    accelerationsOfVehicle[ "Mars" ].push_back( std::make_shared< EmpiricalAccelerationSettings >(
+                                                             Eigen::Vector3d::Zero( ),
+                                                             Eigen::Vector3d::Zero( ),
+                                                             Eigen::Vector3d::Zero( )) );
 
     accelerationMap[spacecraftName] = accelerationsOfVehicle;
 
@@ -286,8 +298,13 @@ int main( ) {
     dependentVariablesToSave.push_back(
             std::make_shared<SingleDependentVariableSaveSettings>(
                     keplerian_state_dependent_variable, spacecraftName, centralBody));
-        dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+    dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
             aerodynamic_force_coefficients_dependent_variable, spacecraftName, centralBody));
+    dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+            local_density_dependent_variable, spacecraftName, centralBody));
+    dependentVariablesToSave.push_back(std::make_shared<SingleAccelerationDependentVariableSaveSettings>(empirical_acceleration, spacecraftName, centralBody));
+    dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+            radiation_pressure_coefficient_dependent_variable, spacecraftName, centralBody));
 
     std::cout << "dependent variables created" << std::endl;
 
@@ -310,7 +327,7 @@ int main( ) {
     //double step_size = ndays * 24 * 3600;
     std::vector< double > initial_times_list_drag;
     // Generate the times for drag coeffs
-    for (double time = integrationStartTime + 10000 ; time < integrationEndTime + 10000; time += step_size) {
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size) {
         //if (integrationEndTime-time < step_size) {
         //    break;
         //}
@@ -341,25 +358,27 @@ int main( ) {
     std::cout<<"arc times created"<<std::endl;
     // Select observation times
     // Compute observed observations. NOTE: don't move this to after the creation of the OrbitDeterminationManager!
-    std::vector< Time > observationTimes;
+    std::vector< double > observationTimes;
     std::vector< Eigen::Matrix< long double, Eigen::Dynamic, 1 > > observations;
-    for ( Time t = integrationStartTime + 600; t < integrationEndTime - 600; t += observationsSamplingTime )
+    for ( Time t = integrationStartTime + 600; t < integrationArcEndTimes.back(); t += observationsSamplingTime )
     {
         try
         {
-            observations.push_back( bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ).segment( 0, 3 ) );
+            observations.push_back( bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, double >( t ).segment( 0, 3 ) );
             observationTimes.push_back( t );
         }
         catch( ... )
         { }
     }
+    std::cout<< observationTimes.back()<<std::endl;
+    std::cout<<"observations and times created"<<std::endl;
     // Retrieve state history from SPICE
     std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > spiceStateHistory;
     for ( Time t : observationTimes )
     {
         spiceStateHistory[ t.getSeconds< long double >() ] =
-                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
-                bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
+                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, double >( t ) -
+                bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, double >( t );
     }
     writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
                             "", 18, 18 );
@@ -367,214 +386,125 @@ int main( ) {
     // Define integrator settings
     std::shared_ptr< IntegratorSettings< > > integratorSettings =
             std::make_shared< IntegratorSettings< > >
-                    ( rungeKutta4, integrationArcStartTimes.at(0), 30.0 );
+                    ( rungeKutta4, integrationStartTime + 600, 30.0 );
+   // std::shared_ptr<IntegratorSettings<> >integratorSettings =
+    //        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
 
     std::cout<<"Integration settings created"<<std::endl;
+
     int numberOfIntegrationArcs = integrationArcStartTimes.size( );
 
-    std::vector< Eigen::VectorXd > systemInitialStates(numberOfIntegrationArcs, Eigen::VectorXd(6));
+    std::vector< Eigen::Matrix < long double, Eigen::Dynamic, 1 > >  systemInitialStates(numberOfIntegrationArcs);
 
-    std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
+    std::vector< std::shared_ptr< SingleArcPropagatorSettings< long double > > > arcPropagationSettingsList;
     for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
-    {
-        std::cout<<"iteration started"<<std::endl;
-        std::cout<<i<<std::endl;
-        std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
-        std::cout<<integrationArcStartTimes.at(i)<<std::endl;
-        systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
-                bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
-        std::cout<<"system initial states created"<<std::endl;
-        arcPropagationSettingsList.push_back(
-                std::make_shared< TranslationalStatePropagatorSettings< double > >
-                        ( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                          systemInitialStates.at( i ), integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
-    }
+        {
+            std::cout<<"iteration started"<<std::endl;
+            std::cout<<i<<std::endl;
+            std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
+            std::cout<<integrationArcStartTimes.at(i)<<std::endl;
+            std::cout<<integrationArcEndTimes.at(i)<<std::endl;
+            systemInitialStates[ i ]  =bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, double >( integrationArcStartTimes.at(i) ) -
+            bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, double >( integrationArcStartTimes.at(i) );
+            std::cout<<"system initial states created"<<std::endl;
+            arcPropagationSettingsList.push_back(std::make_shared< TranslationalStatePropagatorSettings< long double > >
+                                ( centralBodies, accelerationModelMap, bodiesToIntegrate,
+                                  systemInitialStates.at( i ), integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
+        }
 
-    std::cout<<"single arc propagation done"<<std::endl;
-    std::shared_ptr< MultiArcPropagatorSettings< double > > multiArcPropagatorSettings =
-            validateDeprecatedMultiArcSettings< double, double >(
-                    integratorSettings, std::make_shared< MultiArcPropagatorSettings< double > >( arcPropagationSettingsList ),
-                    integrationArcStartTimes, false, true );
-
-    MultiArcDynamicsSimulator< > dynamicsSimulator(
-            bodies, multiArcPropagatorSettings );
-
-    //std::map< double, Eigen::VectorXd > integrationResult;
-    std::map< double, Eigen::Matrix< double,Eigen::Dynamic,1> > integrationResult;
-    std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > dependentVariableResult;
-    for ( unsigned int arcIndex = 0; arcIndex < numberOfIntegrationArcs; ++arcIndex ) {
-        auto singleArcResult = dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
-                            arcIndex )->getEquationsOfMotionNumericalSolution( );
-        integrationResult.insert(singleArcResult.begin(), singleArcResult.end());
-        auto singleArcDepVars = dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
-                            arcIndex )->getDependentVariableHistory( );
-        dependentVariableResult.insert(singleArcDepVars.begin(), singleArcDepVars.end());
-       // std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
-       // std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
-    }
-    writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-    writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-
-    // create multi arc propagation settings
-    for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ ) {
-        std::cout << "integration arc start times"<<integrationArcStartTimes.at(i) << std::endl;
-        std::cout << "integration arc end times"<<integrationArcEndTimes.at(i) << std::endl;
-    }
-    std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
-    std::map< double, Eigen::VectorXd > stateVectorsAtStartTimes;
+    std::shared_ptr< MultiArcPropagatorSettings< long double > > multiArcPropagatorSettings =
+            validateDeprecatedMultiArcSettings< long double, double >(
+            integratorSettings, std::make_shared< MultiArcPropagatorSettings< long double > >( arcPropagationSettingsList ),
+            integrationArcStartTimes, false, true );
 
 
+    // Select parameters to estimate
     std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
-            getInitialMultiArcParameterSettings< double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
+                getInitialMultiArcParameterSettings< long double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
+    //parameterNames.push_back( std::make_shared< EstimatableParameterSettings >( spacecraftName, radiation_pressure_coefficient ) );
     parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, initial_times_list_drag ));
-    //parameterNames.push_back(std::make_shared< EstimatableParameterSettings >( spacecraftName, constant_drag_coefficient ));
+    parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
 
-    std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
-            createParametersToEstimate< double, double >( parameterNames, bodies );
+    std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
+    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+    empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
+
+    parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
+            spacecraftName,"Mars", empiricalAccelerationComponents, integrationArcStartTimes ) );
+
+    std::shared_ptr< estimatable_parameters::EstimatableParameterSet< long double > > parametersToEstimate =
+            createParametersToEstimate< long double, double >( parameterNames, bodies, multiArcPropagatorSettings );
+    printEstimatableParameterEntries( parametersToEstimate );
+
 
     std::cout<<"parameters to estimate created"<<std::endl;
 
-    // observations times
-    int days = static_cast<int>(totalDuration / physical_constants::JULIAN_DAY );
-    std::cout<<"days: "<<days<<std::endl;
-    std::cout<<integrationArcStartTimes.size( )<<std::endl;
-    std::vector<double> initial_times_list = { integrationArcStartTimes[0] + buffer };
-    for (int day = 1; day < days; ++day) {
-        initial_times_list.push_back(integrationArcStartTimes[0] + buffer + day * 24 * 3600);
-    }
-    std::vector<double> final_times_list = { integrationArcStartTimes[0] + buffer + hoursperday * 3600 };
-    for (int day = 1; day < days; ++day) {
-        final_times_list.push_back(integrationArcStartTimes[0] + buffer + day * 24 * 3600 + hoursperday * 3600);
-    }
-    std::vector<double> observationTimesList;
-    for (int i = 0; i < days; ++i) {
-        double start = initial_times_list[i];
-        std::cout<<"start time: "<<start<<std::endl;
-        double end = final_times_list[i];
-        std::cout<<"end time: "<<end<<std::endl;
-        for (double time = start; time < end; time += 10) {
-            observationTimesList.push_back(time);
-        }
-    }
+    // Create link ends
+    LinkEnds linkEnds;
+    linkEnds[ observed_body ] = spacecraftName;
 
-    std::cout<< "Observation times created" << std::endl;
+    // Create observation model settings
+    std::vector< std::shared_ptr< observation_models::ObservationModelSettings > > observationModelSettingsList;
+    observationModelSettingsList.push_back( positionObservableSettings( linkEnds ) );
 
-// Create list of link ends where the ground station is the transmitter and the spacecraft is the receiver
-    std::vector< LinkEnds > stationTransmitterLinkEnds;
-    std::vector< std::string > GroundStations = {  "DSS-26" , "DSS-42", "DSS-61"};
-    for ( std::string groundStation : GroundStations ) {
-        // Define link ends for observations.
-        LinkEnds linkEnds;
-        linkEnds[transmitter] = LinkEndId("Earth", groundStation);
-        linkEnds[receiver] = spacecraftName;
-        stationTransmitterLinkEnds.push_back( linkEnds );
-    }
-    ObservableType selectedObservable = one_way_doppler;  // Define the observable type (replace with desired type)
-    std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
-    // Populate the map with all the transmitter link ends
-    for( unsigned int i = 0; i < stationTransmitterLinkEnds.size( ); i++ )
-    {
-        //linkEndsPerObservable[selectedObservable].push_back( stationTransmitterLinkEnds[ i ] );
-        observationSettingsList.push_back( std::make_shared< ObservationModelSettings >(
-                one_way_doppler, stationTransmitterLinkEnds.at( i ) ) );
-    }
     std::cout<<"link ends created"<<std::endl;
 
     // Create orbit determination object.
-    OrbitDeterminationManager< double, double > orbitDeterminationManager =
-            OrbitDeterminationManager< double, double >(
+    OrbitDeterminationManager< long double, double > orbitDeterminationManager =
+            OrbitDeterminationManager< long double, double >(
                     bodies, parametersToEstimate,
-                    observationSettingsList, multiArcPropagatorSettings );
+                    observationModelSettingsList, multiArcPropagatorSettings );
     std::cout<<"orbit determination manager created"<<std::endl;
-    // Create observation viability settings and calculators
-    std::vector< std::shared_ptr< ObservationViabilitySettings > > observationViabilitySettings;
-    for ( std::string groundStation : GroundStations )
-    {
-        observationViabilitySettings.push_back( std::make_shared< ObservationViabilitySettings >(
-                minimum_elevation_angle, std::make_pair( "Earth", groundStation ), "",
-                unit_conversions::convertDegreesToRadians( 15.0 ) ) );
-        observationViabilitySettings.push_back( std::make_shared<ObservationViabilitySettings>(
-                body_occultation,
-                std::make_pair(groundStation, spacecraftName),
-                "Mars",
-                TUDAT_NAN
-        ));
-    }
-    std::cout<<"Observation viability settings created"<<std::endl;
 
-    std::vector< std::shared_ptr< ObservationViabilityCalculator > > viabilityCalculators;
-    for (unsigned int i = 0; i < stationTransmitterLinkEnds.size(); i++) {
-        std::vector< std::shared_ptr< ObservationViabilityCalculator > > calculators =
-                createObservationViabilityCalculators(bodies, stationTransmitterLinkEnds[i], one_way_doppler, observationViabilitySettings);
-        viabilityCalculators.insert(viabilityCalculators.end(), calculators.begin(), calculators.end());
+
+    // Retrieve state history
+    //std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
+    /*for ( Time t : observationTimes )
+    {
+        propagatedStateHistory[ t.getSeconds< long double >() ] =
+                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
+                    bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
     }
-    // Create noise
-    // Create noise functions per observable
-    //double rangeNoise = 0.1;
-    std::map< ObservableType, std::function< double( const double ) > > noiseFunctions;
-    noiseFunctions[ one_way_doppler ] =
-            std::bind( &utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >,
-                       createBoostContinuousRandomVariableGeneratorFunction(
-                               tudat::statistics::normal_boost_distribution, { 0.0, rangeNoise }, 0.0 ), std::placeholders::_1 );
-    std::cout<<"noise functions created"<<std::endl;
-    // Wrapper function to convert double to Eigen::VectorXd
-    std::function<Eigen::VectorXd(const double)> noiseFunctionWrapper =
-            [noiseFunctions](const double time) -> Eigen::VectorXd
-            {
-                double noiseValue = noiseFunctions.at(one_way_doppler)(time);
-                Eigen::VectorXd noiseVector(1);
-                noiseVector(0) = noiseValue;
-                return noiseVector;
-            };
-    std::cout<<"noise functions converted to Eigen::VectorXd"<<std::endl;
+
+    writeDataMapToTextFile( propagatedStateHistory, "stateHistoryPropagatedPreFit_" + fileTag + ".txt", saveDirectory,
+                            "", 18, 18 );
+    writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
+                            "", 18, 18 );
+*/
+
+
+    std::vector< std::shared_ptr< SingleObservationSet< long double, double > > > observationSetList;
+    observationSetList.push_back(
+            std::make_shared< SingleObservationSet<long double, double > >(
+                    position_observable, linkEnds, observations, observationTimes, observed_body ) );
+    std::shared_ptr< ObservationCollection< long double, double > > observedObservationCollection =
+            std::make_shared< ObservationCollection< long double, double > >( observationSetList );
+
+    std::cout<<"observations and times created"<<std::endl;
+
+    // set a priori to the drag coefficients
+    const int DIAGONALS = numberOfIntegrationArcs*6;
+    double aprioriuncertainty =1.0/(0.001*0.001);
 
     Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
             parametersToEstimate->template getFullParameterValues< double >( );
-
-    std::vector< std::shared_ptr< ObservationSimulationSettings< double > > > measurementSimulationInput;
-
-    for (unsigned int r = 0; r < stationTransmitterLinkEnds.size(); r++) {
-        measurementSimulationInput.push_back(
-                std::make_shared< TabulatedObservationSimulationSettings< double > >(
-                        one_way_doppler, stationTransmitterLinkEnds[r], observationTimesList, receiver, observationViabilitySettings, noiseFunctionWrapper));
-    }
-
-    std::shared_ptr< ObservationCollection< double, double > > observationsAndTimes = simulateObservations< double, double >(
-            measurementSimulationInput, orbitDeterminationManager.getObservationSimulators( ), bodies  );
-    std::cout<<"observations and times created"<<std::endl;
-
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
     int numberOfParameters = initialParameterEstimate.rows( );
-    std::cout<<"number of parameters: "<<numberOfParameters<<std::endl;
-    // Perturb initial states
-    for( unsigned int i = 0; i < integrationArcStartTimes.size( ); i++ )
-    {
-        initialParameterEstimate[ 0 + 6 * i ] += 100.0E0;
-        initialParameterEstimate[ 1 + 6 * i ] += 100.0E0;
-        initialParameterEstimate[ 2 + 6 * i ] += 100.0E0;
-        initialParameterEstimate[ 3 + 6 * i ] += 1.0E-1;
-        initialParameterEstimate[ 4 + 6 * i ] += 1.0E-1;
-        initialParameterEstimate[ 5 + 6 * i ] += 1.0E-1;
+    // Create a 2D vector (matrix) filled with zeros
+    Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
+    // Fill the matrix with the values of the diagonal
+    for (int i = DIAGONALS; i < numberOfParameters - 4*numberOfIntegrationArcs ; ++i) {
+        matrix(i,i) = aprioriuncertainty;
     }
-    std::cout<<"initial parameters perturbed"<<std::endl;
-    //Perturb remaining parameters
-    /*for( unsigned int i = integrationArcStartTimes.size( );
-         i < static_cast< unsigned int >( initialParameterEstimate.rows( ) ); i++ )
-    {
-        initialParameterEstimate[ i ] *= ( 1.0 + 1.0E-6 );
-    }
-*/
-    parametersToEstimate->resetParameterValues( initialParameterEstimate );
-    printEstimatableParameterEntries( parametersToEstimate );
-
-    // Define estimation input
-    std::shared_ptr< EstimationInput< double, double  > > estimationInput =
-            std::make_shared< EstimationInput< double, double > >(
-                    observationsAndTimes,
-                    Eigen::MatrixXd::Zero( 0, 0 ),
-                    std::make_shared< EstimationConvergenceChecker >( 5 ) );
+  // Define estimation input
+    std::shared_ptr< EstimationInput< long double, double  > > estimationInput =
+            std::make_shared< EstimationInput< long double, double > >(
+                    observedObservationCollection,
+                    Eigen::MatrixXd::Zero(0,0),//matrix,
+                    std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
     // Call the function with reintegrateVariationalEquations set to true
     estimationInput->defineEstimationSettings(
             true,  // reintegrateEquationsOnFirstIteration
@@ -586,112 +516,44 @@ int main( ) {
             1.0E8, // limitConditionNumberForWarning
             true   // conditionNumberWarningEachIteration
     );
-    std::map< observation_models::ObservableType, double > weightPerObservable;
-    weightPerObservable[ one_way_doppler ] = std::pow(rangeNoise, -2);
-    estimationInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
-    std::cout<<"estimation input created"<<std::endl;
 
-    //std::shared_ptr< EstimationInput< double, double > > estimationInput =
-    //        std::make_shared< EstimationInput< double, double > >(
-    //                observationsAndTimes );
-    std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
-            std::make_shared< CovarianceAnalysisInput< double, double > >(
-                    observationsAndTimes );
+
+    std::shared_ptr< CovarianceAnalysisInput< long double, double > > covarianceInput =
+        std::make_shared< CovarianceAnalysisInput< long double, double > >(
+                observedObservationCollection);
+
+    covarianceInput->getConsiderCovariance();
+    covarianceInput->defineCovarianceSettings(true, false);
+
     std::cout<<"covariance input created"<<std::endl;
 
-    std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
+    std::shared_ptr< CovarianceAnalysisOutput< long double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
             covarianceInput );
+
+    Eigen::MatrixXd propcorrelationMatrix = covarianceOutput->getCorrelationMatrix( );
+
+    std::ofstream file11(saveDirectory + "propcorrelations_" + fileTag + ".txt");
+    file11 << std::setprecision( 21 ) << propcorrelationMatrix ;
+    file11.close();
+
     std::cout<<"covariance output created"<<std::endl;
 
     // Perform estimation
-    std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
-            estimationInput );
-    std::cout<<"estimation performed"<<std::endl;
-
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
-
-    // retrieve simulate observations
-    std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
-    std::vector< double > concatenatedObservationTimes = observationsAndTimes->getConcatenatedTimeVector();
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > observationVector = observationsAndTimes->getObservationVector();
-    std::cout << "Observation Times size:" << concatenatedObservationTimes.size() << std::endl;
-    std::cout << "Observation Vector size:" << concatenatedObservationTimes.size() << std::endl;
-
-    // Open file to save observations and times
-    std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
-    outputFile << std::setprecision(17);
-    outputFile << "station_id,observable_type,time,observation\n";
-    std::cout<<"output file created, starting loop over the sorted observations"<<std::endl;
-
-    for (const auto &observableType: sortedObservationSets) {
-        for (const auto &stationId: observableType.second) {
-            for (const auto &obsSetPtr: stationId.second) {
-                auto time = obsSetPtr->getObservationTimes();
-                auto observation = obsSetPtr->getObservationsVector();
-                std::cout << "Observation time: " << time.size() << std::endl;
-                std::cout << "Observation: " << observation.size() << std::endl;
-                // Save times and observations to file
-                for (size_t i = 0; i < time.size(); ++i)
-                {
-                    outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
-                }
-            }
-        }
-    }
-    outputFile.close();
-
-    // save true errors
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
-    //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
-    std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
-    // save formal errors
-    Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = estimationOutput->getFormalErrorVector( );
-    std::cout<<"Formal error: "<<estimationOutput->getFormalErrorVector( ).transpose( )<<std::endl;
-    std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
-            estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
-
-    std::cout<<"True and formal errors saved"<<std::endl;
-
-    std::ofstream fe(saveDirectory + "matrix.csv");
-    // Write the matrix to the file
-    fe << estimationOutput->normalizedDesignMatrix_;
-    // Close the file
-    fe.close();
-
-    // retrieve residuals
-    Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
-    Eigen::Matrix< double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
-
-    Eigen::MatrixXd residualsWithTime;
-    residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
-    residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
-
-    for ( unsigned int i = 0; i < observationVector.size( ); ++i )
-    {
-        residualsWithTime( i, 0 ) = static_cast< Time >( concatenatedObservationTimes.at( i )
-        ).getSeconds< long double >();
-    }
-
-    std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
-    file << std::setprecision( 17 ) << residualsWithTime;
-    file.close();
-
-    std::cout<<"residuals saved"<<std::endl;
+    std::shared_ptr< EstimationOutput< long double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
+                estimationInput );
 
     int itr_number = 0;
     for (const auto& iterationOutput : estimationOutput->getSimulationResults()){ //simulationResultsPerIteration_) {
-        auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(iterationOutput);
-        //std::shared_ptr<tudat::propagators::SimulationResults<double, double>> bestIterationOutput = estimationOutput->simulationResultsPerIteration_.back();//estimationOutput->bestIteration_ );
-        //auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(bestIterationOutput);
+        auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, long double, double>>(iterationOutput);
         auto singleArcResults = multiArcResults->getSingleArcResults();
-        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
+        std::map< double, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
         std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedDependentVariablesPostFitDynamic;
-        std::map< double, Eigen::Matrix< double, 6, 1 > > concatenatedStateHistoryPostFit;
-        std::cout<<singleArcResults.size()<<std::endl;
+        std::map< double, Eigen::Matrix< long double, 6, 1 > > concatenatedStateHistoryPostFit;
+        //std::cout<<singleArcResults.size()<<std::endl;
         for ( unsigned int arcIndex = 0; arcIndex < singleArcResults.size(); ++arcIndex )
         {
             // Retrieve the state history for the current arc
-            std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
+            std::map< double, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
 
             // Retrieve the dependent variables history for the current arc
             std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcDependentVariablesPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getDependentVariableHistory( );
@@ -699,7 +561,7 @@ int main( ) {
             for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
             {
                 concatenatedStateHistoryPostFitDynamic[ it->first ] = it->second;
-                std::cout<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
+                //std::cout<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
             }
             // Append the dependent variables history to the concatenated map
             for ( auto it = arcDependentVariablesPostFitDynamic.begin(); it != arcDependentVariablesPostFitDynamic.end(); ++it )
@@ -712,7 +574,7 @@ int main( ) {
         for ( auto it = concatenatedStateHistoryPostFitDynamic.begin(); it != concatenatedStateHistoryPostFitDynamic.end(); ++it )
         {
             concatenatedStateHistoryPostFit[ it->first ] = it->second;
-            std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
+            //std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
         }
         writeDataMapToTextFile( concatenatedStateHistoryPostFit, "stateHistoryPropagatedPostFit_" + fileTag + "itr" + std::to_string(itr_number) + ".txt", saveDirectory,
                                 "", 18, 18 );
@@ -720,15 +582,64 @@ int main( ) {
         // Write dependent variables to file
         writeDataMapToTextFile( concatenatedDependentVariablesPostFitDynamic, "dependentVariablesPropagatedPostFit_" + fileTag + "itr" + std::to_string(itr_number) + ".txt", saveDirectory,
                                 "", 18, 18 );
+
         itr_number++;
     }
-    // Write covariance matrix
-    Eigen::MatrixXd covarianceOutputEstimation = estimationOutput->getCorrelationMatrix();
+    // Retrieve residuals and set them in matrix
+    Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
+    Eigen::Matrix< long double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
 
-    // Save covariance matrix
-    std::ofstream fileCov(saveDirectory + "covariance_" + fileTag + ".txt");
-    fileCov << std::setprecision( 17 ) << covarianceOutputEstimation;
-    fileCov.close();
+    Eigen::MatrixXd correlationMatrix = estimationOutput->getCorrelationMatrix( );
+
+    Eigen::MatrixXd residualsWithTime;
+    residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
+    residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
+
+    for ( unsigned int i = 0; i < observedObservationCollection->getObservationVector( ).size( ); ++i )
+    {
+        residualsWithTime( i, 0 ) = static_cast< Time >( observedObservationCollection->getConcatenatedTimeVector( ).at( i )
+                ).getSeconds< long double >();
+    }
+
+    std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
+    file << std::setprecision( 17 ) << residualsWithTime;
+    file.close();
+
+    std::ofstream file3(saveDirectory + "parameters_" + fileTag + ".txt");
+    file3 << std::setprecision( 21 ) << parameterHistory;
+    file3.close();
+
+
+    // Retrieve covariance matrix
+    Eigen::MatrixXd normalizedCovarianceMatrix = estimationOutput->getNormalizedCovarianceMatrix( );
+    Eigen::MatrixXd unnormalizedCovarianceMatrix = estimationOutput->getUnnormalizedCovarianceMatrix( );
+    std::ofstream file4(saveDirectory + "covariance_" + fileTag + ".txt");
+    file4 << std::setprecision( 17 ) << "Normalized covariance matrix: " << std::endl << normalizedCovarianceMatrix;
+    file4 << std::endl << std::endl;
+    file4 << "Unnormalized covariance matrix: " << std::endl << unnormalizedCovarianceMatrix;
+    file4.close( );
+
+    std::ofstream file2(saveDirectory + "observationsStartAndSize_" + fileTag + ".txt");
+    std::map< ObservableType, std::map< int, std::vector< std::pair< int, int > > > > observationSetStartAndSize =
+            observedObservationCollection->getObservationSetStartAndSizePerLinkEndIndex();
+    for ( auto it = observationSetStartAndSize.begin(); it != observationSetStartAndSize.end(); ++it )
+    {
+        ObservableType observable = it->first;
+        for ( auto it2 = it->second.begin(); it2 != it->second.end(); ++it2 )
+        {
+            int linkEnd = it2->first;
+            for ( unsigned int i = 0; i < it2->second.size(); ++i )
+            {
+                file2 << std::setprecision( 15 ) << observable << " " << linkEnd << " " << it2->second.at( i ).first <<
+                    " " << it2->second.at( i ).second << std::endl;
+            }
+        }
+    }
+    file2.close();
+
+    std::ofstream file10(saveDirectory + "correlations_" + fileTag + ".txt");
+    file10 << std::setprecision( 21 ) << correlationMatrix ;
+    file10.close();
 
 
 }

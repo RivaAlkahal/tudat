@@ -80,7 +80,7 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8_ipng_mgs95j.bsp" );
 
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "newspice";
+    std::string fileTag = "newspice-prop";
 
     // set input options
     double epehemeridesTimeStep = 60.0;

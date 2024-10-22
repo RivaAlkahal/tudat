@@ -1,3 +1,4 @@
+set(CMAKE_BUILD_TYPE Debug)
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm
         "TestMarsDtm.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
@@ -66,3 +67,17 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm17
         "debug-multiarcpro.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm18
+        "debug-posobs.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm19
+        "debug-posobs-multiarc.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm20
+        "propagation_tests.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+
+
