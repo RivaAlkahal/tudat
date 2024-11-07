@@ -43,7 +43,7 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm11
         "doppler-multiarc-drag.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-TUDAT_ADD_EXECUTABLE(application_test_mars_dtm12
+TUDAT_ADD_EXECUTABLE(twowaydopplerLX
         "twowaydopplerLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
@@ -67,15 +67,15 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm17
         "debug-multiarcpro.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-TUDAT_ADD_EXECUTABLE(application_test_mars_dtm18
+TUDAT_ADD_EXECUTABLE(debug-posobs
         "debug-posobs.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-TUDAT_ADD_EXECUTABLE(application_test_mars_dtm19
+TUDAT_ADD_EXECUTABLE(debug-posobs-multiarcLX
         "debug-posobs-multiarcLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-TUDAT_ADD_EXECUTABLE(application_test_mars_dtm20
+TUDAT_ADD_EXECUTABLE(propagation_testsLX
         "propagation_testsLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
