@@ -72,11 +72,19 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm18
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm19
-        "debug-posobs-multiarc.cpp"
+        "debug-posobs-multiarc_mac.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm20
-        "propagation_tests.cpp"
+        "propagation_tests_mac.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm21
+        "arcLengthVariations_mac.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(application_test_mars_dtm22
+        "arcLengthAutomated_mac.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 

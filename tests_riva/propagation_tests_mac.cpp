@@ -128,7 +128,7 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9_ipng_mgs95j.bsp" );
 
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
-    std::string fileTag = "propagateAlltrend10-RK4-10ss";
+    std::string fileTag = "propagateAll10trend-RK78-30ss";
     bool startEstimate = false;
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -192,7 +192,7 @@ int main( ) {
         bodySettings.at(spacecraftName)->ephemerisSettings =
                 std::make_shared<DirectSpiceEphemerisSettings>(baseFrameOrigin, baseFrameOrientation);
     }
-    bodySettings.at(spacecraftName)->constantMass = 700.0;
+    bodySettings.at(spacecraftName)->constantMass = 1030.5;
     bodySettings.at(spacecraftName)->ephemerisSettings->resetMakeMultiArcEphemeris(true);
 
     // Set gravity field variations
@@ -396,9 +396,9 @@ int main( ) {
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
 
 
-/*
-    //scM/0.01
 
+    //scM/0.01
+/*
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
 
     cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
@@ -605,11 +605,11 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-    std::shared_ptr< IntegratorSettings< > > integratorSettings =
-            std::make_shared< IntegratorSettings< > >
-                    ( rungeKutta4, integrationStartTime + 600, 10.0 );
-    //std::shared_ptr<IntegratorSettings<> >integratorSettings =
-    //        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
+    //std::shared_ptr< IntegratorSettings< > > integratorSettings =
+    //        std::make_shared< IntegratorSettings< > >
+    //               ( rungeKutta4, integrationStartTime + 600, 60.0 );
+    std::shared_ptr<IntegratorSettings<> >integratorSettings =
+           std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
 
     std::cout<<"Integration settings created"<<std::endl;
 

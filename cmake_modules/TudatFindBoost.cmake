@@ -66,8 +66,10 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/debugtestobserv.cpp
                     ../tests_riva/debug-multiarcpro.cpp
                     ../tests_riva/debug-posobs.cpp
-                    ../tests_riva/debug-posobs-multiarc.cpp
-                    ../tests_riva/propagation_tests.cpp
+                    ../tests_riva/debug-posobs-multiarc_mac.cpp
+                    ../tests_riva/propagation_tests_mac.cpp
+                    ../tests_riva/arcLengthVariations_mac.cpp
+                    ../tests_riva/arcLengthAutomated_mac.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

@@ -89,7 +89,7 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8_ipng_mgs95j.bsp" );
 
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "observspice-RK78-multiarc-drag-noap-per-arc-emprconst";
+    std::string fileTag = "observspice-RK78-60s-multiarc-drag-apr10-per-arc-emprconst-perarc+grav95";
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -97,7 +97,8 @@ int main( ) {
     double observationsSamplingTime = 60.0;
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 3.0 * 86400.0;//2.0E4;
-    std::string dragEst = "per-arc";//"per-rev";
+    std::string dragEst = "per-rev";//"per-rev";
+    std::string empEst = "per-arc";
     double ndays = 3.0;
     double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
@@ -267,7 +268,7 @@ int main( ) {
     accelerationsOfVehicle["Mercury"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Venus"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Earth"].push_back(pointMassGravityAcceleration());
-    accelerationsOfVehicle["Mars"].push_back(sphericalHarmonicAcceleration(50, 50));
+    accelerationsOfVehicle["Mars"].push_back(sphericalHarmonicAcceleration(95, 95));
     accelerationsOfVehicle["Mars"].push_back(relativisticAccelerationCorrection());
     accelerationsOfVehicle["Mars"].push_back(aerodynamicAcceleration());
     accelerationsOfVehicle["Phobos"].push_back(pointMassGravityAcceleration());
@@ -315,24 +316,40 @@ int main( ) {
 
     double integrationStartTime = initialEphemerisTime + 120.0; //1.0E2;
     double integrationEndTime = finalEphemerisTime - 120.0 ; //1.0E2;
-    double step_size;
+    double step_size_drag;
+    double step_size_emp;
     if (dragEst == "per-rev") {
-        step_size = hoursperdaydrag * 3600;
+        step_size_drag = hoursperdaydrag * 3600;
     }
     else
     {
-        step_size = ndays * 24 * 3600;
+        step_size_drag = ndays * 24 * 3600;
     }
-    std::cout<<"step size: "<<step_size<<std::endl;
+    if (empEst == "per-rev") {
+        step_size_emp = hoursperdaydrag * 3600;
+    }
+    else
+    {
+        step_size_emp = ndays * 24 * 3600;
+    }
+    std::cout<<"step size: "<<step_size_drag<<std::endl;
     //double step_size = ndays * 24 * 3600;
     std::vector< double > initial_times_list_drag;
+    std::vector< double > initial_times_list_emp;
     // Generate the times for drag coeffs
-    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size) {
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size_drag) {
         //if (integrationEndTime-time < step_size) {
         //    break;
         //}
         initial_times_list_drag.push_back(time);
         std::cout<<"time drag: "<<time<<std::endl;
+    }
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size_emp) {
+        //if (integrationEndTime-time < step_size) {
+        //    break;
+        //}
+        initial_times_list_emp.push_back(time);
+        //std::cout<<"time drag: "<<time<<std::endl;
     }
 
     std::cout<<"integration start time: "<<integrationStartTime<<std::endl;
@@ -384,11 +401,11 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-    std::shared_ptr< IntegratorSettings< > > integratorSettings =
-            std::make_shared< IntegratorSettings< > >
-                    ( rungeKutta4, integrationStartTime + 600, 30.0 );
-   // std::shared_ptr<IntegratorSettings<> >integratorSettings =
-    //        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
+   // std::shared_ptr< IntegratorSettings< > > integratorSettings =
+    //        std::make_shared< IntegratorSettings< > >
+    //                ( rungeKutta4, integrationStartTime + 600, 30.0 );
+    std::shared_ptr<IntegratorSettings<> >integratorSettings =
+            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
 
     std::cout<<"Integration settings created"<<std::endl;
 
@@ -422,16 +439,17 @@ int main( ) {
     std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
                 getInitialMultiArcParameterSettings< long double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
     //parameterNames.push_back( std::make_shared< EstimatableParameterSettings >( spacecraftName, radiation_pressure_coefficient ) );
-    parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, initial_times_list_drag ));
-    parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
+    parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
+    //parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
 
     std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
-    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
     //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
-    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
     //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
     empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
-    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
 
     parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
             spacecraftName,"Mars", empiricalAccelerationComponents, integrationArcStartTimes ) );
@@ -488,7 +506,7 @@ int main( ) {
 
     // set a priori to the drag coefficients
     const int DIAGONALS = numberOfIntegrationArcs*6;
-    double aprioriuncertainty =1.0/(0.001*0.001);
+    double aprioriuncertainty =1.0/(10*10);
 
     Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
             parametersToEstimate->template getFullParameterValues< double >( );
@@ -496,14 +514,14 @@ int main( ) {
     // Create a 2D vector (matrix) filled with zeros
     Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
     // Fill the matrix with the values of the diagonal
-    for (int i = DIAGONALS; i < numberOfParameters - 4*numberOfIntegrationArcs ; ++i) {
+    for (int i = DIAGONALS; i < 140 ; ++i) {
         matrix(i,i) = aprioriuncertainty;
     }
   // Define estimation input
     std::shared_ptr< EstimationInput< long double, double  > > estimationInput =
             std::make_shared< EstimationInput< long double, double > >(
                     observedObservationCollection,
-                    Eigen::MatrixXd::Zero(0,0),//matrix,
+                    matrix,
                     std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
     // Call the function with reintegrateVariationalEquations set to true
     estimationInput->defineEstimationSettings(
