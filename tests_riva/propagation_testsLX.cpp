@@ -156,7 +156,7 @@ int main( ) {
 //    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
     std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/propagateDynamics/";
     std::string fileTag = "propagatenotrend-RK78-30ss-360days";
-    bool startEstimate = false;
+   bool startEstimate = false;
     // set input options
     double epehemeridesTimeStep = 60.0;
     bool useInterpolatedEphemerides = true;
@@ -220,7 +220,7 @@ int main( ) {
         bodySettings.at(spacecraftName)->ephemerisSettings =
                 std::make_shared<DirectSpiceEphemerisSettings>(baseFrameOrigin, baseFrameOrientation);
     }
-    bodySettings.at(spacecraftName)->constantMass = 700.0;
+    bodySettings.at(spacecraftName)->constantMass = 1030.5;
     bodySettings.at(spacecraftName)->ephemerisSettings->resetMakeMultiArcEphemeris(true);
 
     // Set gravity field variations
@@ -422,11 +422,18 @@ int main( ) {
     cosineAmplitudes[1](1,2) += -1.99682320271527e-10/(365*24*3600);
     //cosineAmplitudes[1](1,3) += 1.19185562092185e-09/(365*24*3600);
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
+<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
 */
 /*
 
     //scM/0.01
+========
 
+
+>>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
+
+    //scM/0.01
+/*
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
 
     cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
@@ -638,6 +645,7 @@ int main( ) {
     //                ( rungeKutta4, integrationStartTime + 600, 10.0 );
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
             std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
+
 
     std::cout<<"Integration settings created"<<std::endl;
 

@@ -330,24 +330,33 @@ int main( ) {
 
     double integrationStartTime = initialEphemerisTime + 120.0; //1.0E2;
     double integrationEndTime = finalEphemerisTime - 120.0 ; //1.0E2;
-    double step_size;
+    double step_size_drag;
+    double step_size_emp;
     if (dragEst == "per-rev") {
-        step_size = hoursperdaydrag * 3600;
+        step_size_drag = hoursperdaydrag * 3600;
     }
     else
     {
-        step_size = ndays * 24 * 3600;
+        step_size_drag = ndays * 24 * 3600;
     }
-    std::cout<<"step size: "<<step_size<<std::endl;
+    std::cout<<"step size: "<<step_size_drag<<std::endl;
     //double step_size = ndays * 24 * 3600;
     std::vector< double > initial_times_list_drag;
+    std::vector< double > initial_times_list_emp;
     // Generate the times for drag coeffs
-    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size) {
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size_drag) {
         //if (integrationEndTime-time < step_size) {
         //    break;
         //}
         initial_times_list_drag.push_back(time);
         std::cout<<"time drag: "<<time<<std::endl;
+    }
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size_emp) {
+        //if (integrationEndTime-time < step_size) {
+        //    break;
+        //}
+        initial_times_list_emp.push_back(time);
+        //std::cout<<"time drag: "<<time<<std::endl;
     }
 
     std::cout<<"integration start time: "<<integrationStartTime<<std::endl;
