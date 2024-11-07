@@ -58,7 +58,7 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/singlearcprop-multiarcest.cpp
                     ../tests_riva/single-multiarc-onewaydoppler.cpp
                     ../tests_riva/doppler-multiarc-drag.cpp
-                    ../tests_riva/twowaydoppler.cpp
+                    ../tests_riva/twowaydopplerLX.cpp
                     ../tests_riva/testobservations.cpp
                     ../tests_riva/propagation_polynomial.cpp
                     ../tests/src/astro/orbit_determination/acceleration_partials/unitTestSphericalHarmonicPartials2.cpp
@@ -66,8 +66,8 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/debugtestobserv.cpp
                     ../tests_riva/debug-multiarcpro.cpp
                     ../tests_riva/debug-posobs.cpp
-                    ../tests_riva/debug-posobs-multiarc.cpp
-                    ../tests_riva/propagation_tests.cpp
+                    ../tests_riva/debug-posobs-multiarcLX.cpp
+                    ../tests_riva/propagation_testsLX.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

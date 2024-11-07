@@ -98,6 +98,7 @@ int main( ) {
     using namespace tudat::orbital_element_conversions;
 
     spice_interface::loadStandardSpiceKernels();
+    /*
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6.bsp" );
@@ -126,9 +127,35 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext7_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext8_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9_ipng_mgs95j.bsp" );
+*/
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
-    std::string fileTag = "propagateAlltrend10-RK4-10ss";
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
+
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9.bsp" );
+
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9_ipng_mgs95j.bsp" );
+
+
+//    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
+    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/propagateDynamics/";
+    std::string fileTag = "propagatenotrend-RK78-30ss-360days";
     bool startEstimate = false;
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -148,7 +175,7 @@ int main( ) {
     double twoWayDopplerNoise = 0.0001;
     double rangeNoise = 0.0001;
     Time initialEphemerisTime = Time(0.0);
-    Time finalEphemerisTime = Time( 86400.0 * 60.0);
+    Time finalEphemerisTime = Time( 86400.0 * 360.0);
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout << "Total duration: " << totalDuration << std::endl;
 
@@ -175,7 +202,8 @@ int main( ) {
 
     bodySettings.at("Earth")->groundStationSettings = getDsnStationSettings();
 
-    std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+//    std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+    std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
     bodySettings.at("Mars")->atmosphereSettings = marsDtmAtmosphereSettings(filename, 3378.0E3);
 
     // Set spherical harmonics gravity field
@@ -199,7 +227,7 @@ int main( ) {
     std::map<double,  Eigen::MatrixXd> cosineCoefficientCorrections;
     std::map<double,  Eigen::MatrixXd> sineCoefficientCorrections;
     // Get gravity field variations from file (surface pressure)
-    std::string filename2 = "/Users/ralkahal/Downloads/timeseries_agrav_mgs.out";
+/*    std::string filename2 = "/Users/ralkahal/Downloads/timeseries_agrav_mgs.out";
     std::ifstream inputFile(filename2);
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file: " << filename2 << std::endl;
@@ -269,7 +297,7 @@ int main( ) {
             }
 */
 
-        //std::cout<< convertModifiedJulianDayToCalendarDate(5.1547826388888891E+04) <<std::endl;
+/*        //std::cout<< convertModifiedJulianDayToCalendarDate(5.1547826388888891E+04) <<std::endl;
         //std::cout<< convertJulianDayToSecondsSinceEpoch(convertModifiedJulianDayToJulianDay(5.1547826388888891E+04)) <<std::endl;
         // convert MJD to JD
         double timeJD = convertModifiedJulianDayToJulianDay(time);
@@ -292,7 +320,7 @@ int main( ) {
         i++;
     }
     inputFile.close();
-
+*/
     std::vector<std::shared_ptr<GravityFieldVariationSettings> > gravityFieldVariations;
 
     // Set solid body tide gravity field variation
@@ -308,8 +336,8 @@ int main( ) {
             std::make_shared<BasicSolidBodyGravityFieldVariationSettings>(deformingBodies, loveNumbers);
     gravityFieldVariations.push_back(singleGravityFieldVariation);
 
-    std::shared_ptr<GravityFieldVariationSettings > tabulatedGravityFieldVariations = std::make_shared<TabulatedGravityFieldVariationSettings >(
-                cosineCoefficientCorrections, sineCoefficientCorrections, 2, 0, std::make_shared< LagrangeInterpolatorSettings >( 8 ) );
+//    std::shared_ptr<GravityFieldVariationSettings > tabulatedGravityFieldVariations = std::make_shared<TabulatedGravityFieldVariationSettings >(
+//                cosineCoefficientCorrections, sineCoefficientCorrections, 2, 0, std::make_shared< LagrangeInterpolatorSettings >( 8 ) );
 
     //gravityFieldVariations.push_back(tabulatedGravityFieldVariations);
 
@@ -384,7 +412,7 @@ int main( ) {
     cosineAmplitudes[1](2,0) = -2.9036065707624e-12/(365*24*3600);
 */
     //scM/10
-
+/*
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-10/(365*24*3600);
 
     cosineAmplitudes[1](0,1) +=1.83526161335626e-10/(365*24*3600);
@@ -394,9 +422,9 @@ int main( ) {
     cosineAmplitudes[1](1,2) += -1.99682320271527e-10/(365*24*3600);
     //cosineAmplitudes[1](1,3) += 1.19185562092185e-09/(365*24*3600);
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
-
-
+*/
 /*
+
     //scM/0.01
 
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
@@ -605,11 +633,11 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-    std::shared_ptr< IntegratorSettings< > > integratorSettings =
-            std::make_shared< IntegratorSettings< > >
-                    ( rungeKutta4, integrationStartTime + 600, 10.0 );
-    //std::shared_ptr<IntegratorSettings<> >integratorSettings =
-    //        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
+    //std::shared_ptr< IntegratorSettings< > > integratorSettings =
+    //        std::make_shared< IntegratorSettings< > >
+    //                ( rungeKutta4, integrationStartTime + 600, 10.0 );
+    std::shared_ptr<IntegratorSettings<> >integratorSettings =
+            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
 
     std::cout<<"Integration settings created"<<std::endl;
 

@@ -44,7 +44,7 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm11
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm12
-        "twowaydoppler.cpp"
+        "twowaydopplerLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm13
@@ -72,11 +72,11 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm18
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm19
-        "debug-posobs-multiarc.cpp"
+        "debug-posobs-multiarcLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm20
-        "propagation_tests.cpp"
+        "propagation_testsLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 

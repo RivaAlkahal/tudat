@@ -963,6 +963,18 @@ int main( ) {
     std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
             estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
 
+    // Open file to save true and formal errors
+    std::ofstream errorFile(saveDirectory + "errors_" + fileTag + ".txt");
+    errorFile << std::setprecision(17);
+    // Calculate and save error ratio
+    Eigen::Matrix<double, Eigen::Dynamic, 1> ErrorRatio = ( ( 1.0E-3 * FormalError.segment( 0, numberOfParameters ) ).cwiseQuotient(
+            estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( );
+    // Calculate and save true errors
+    errorFile << TrueError.transpose( ) << "\t" << FormalError.transpose( ) << "\t" << ErrorRatio.transpose( ) << std::endl;
+    std::cout<<"Error ratio: "<< ErrorRatio.transpose( ) << std::endl;
+
+    // Close the file
+    errorFile.close();
     std::cout<<"True and formal errors saved"<<std::endl;
 
     // retrieve residuals

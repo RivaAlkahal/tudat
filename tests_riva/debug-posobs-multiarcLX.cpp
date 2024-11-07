@@ -74,7 +74,7 @@ int main( ) {
     using namespace tudat::orbital_element_conversions;
 
     spice_interface::loadStandardSpiceKernels();
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
+    /*spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7.bsp" );
@@ -87,9 +87,23 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8_ipng_mgs95j.bsp" );
+*/
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
+    //std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
+    std::string saveDirectory = "/home/ralkahal/new-tudat-tests/";
+    std::string fileTag = "observspice-newmass+matrix-RK78-60s-multiarc-drag-aprsqrt10-per-arc-nosrp-emprsincosperrev+const-constrained";
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "observspice-RK78-multiarc-drag-noap-per-arc-emprconst";
+    std::ofstream outFile(saveDirectory + "output_" + fileTag + ".txt");
+    if (!outFile) {
+        std::cerr << "Error: file could not be opened" << std::endl;
+        return 1;
+    }
+    std::streambuf* originalCoutBuffer = std::cout.rdbuf();
+    std::cout.rdbuf(outFile.rdbuf());
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -97,7 +111,7 @@ int main( ) {
     double observationsSamplingTime = 60.0;
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 3.0 * 86400.0;//2.0E4;
-    std::string dragEst = "per-arc";//"per-rev";
+    std::string dragEst = "per-rev";//"per-rev";
     double ndays = 3.0;
     double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
@@ -136,7 +150,8 @@ int main( ) {
 
     bodySettings.at("Earth")->groundStationSettings = getDsnStationSettings();
 
-    std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+    //std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+    std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
     bodySettings.at("Mars")->atmosphereSettings = marsDtmAtmosphereSettings(filename, 3378.0E3);
 
     // Set spherical harmonics gravity field
@@ -153,7 +168,7 @@ int main( ) {
         bodySettings.at(spacecraftName)->ephemerisSettings =
                 std::make_shared<DirectSpiceEphemerisSettings>(baseFrameOrigin, baseFrameOrientation);
     }
-    bodySettings.at(spacecraftName)->constantMass = 700.0;
+    bodySettings.at(spacecraftName)->constantMass = 1030.5;
     bodySettings.at(spacecraftName)->ephemerisSettings->resetMakeMultiArcEphemeris(true);
 
     // Set gravity field variations
@@ -254,7 +269,7 @@ int main( ) {
     // Create aerodynamic coefficients settings
     Eigen::Vector3d customVector(1.2, 0.0, 0.0);
     std::shared_ptr<AerodynamicCoefficientSettings> aerodynamicCoefficientSettings =
-            std::make_shared<ConstantAerodynamicCoefficientSettings>(10.0, 1.2 * Eigen::Vector3d::UnitX());
+            std::make_shared<ConstantAerodynamicCoefficientSettings>(10.0, 2.0 * Eigen::Vector3d::UnitX());
     bodies.at(spacecraftName)->setAerodynamicCoefficientInterface(
             createAerodynamicCoefficientInterface(aerodynamicCoefficientSettings, spacecraftName, bodies));
 
@@ -267,7 +282,7 @@ int main( ) {
     accelerationsOfVehicle["Mercury"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Venus"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Earth"].push_back(pointMassGravityAcceleration());
-    accelerationsOfVehicle["Mars"].push_back(sphericalHarmonicAcceleration(50, 50));
+    accelerationsOfVehicle["Mars"].push_back(sphericalHarmonicAcceleration(95, 95));
     accelerationsOfVehicle["Mars"].push_back(relativisticAccelerationCorrection());
     accelerationsOfVehicle["Mars"].push_back(aerodynamicAcceleration());
     accelerationsOfVehicle["Phobos"].push_back(pointMassGravityAcceleration());
@@ -384,11 +399,11 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-    std::shared_ptr< IntegratorSettings< > > integratorSettings =
-            std::make_shared< IntegratorSettings< > >
-                    ( rungeKutta4, integrationStartTime + 600, 30.0 );
-   // std::shared_ptr<IntegratorSettings<> >integratorSettings =
-    //        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
+    //std::shared_ptr< IntegratorSettings< > > integratorSettings =
+     //       std::make_shared< IntegratorSettings< > >
+    //                ( rungeKutta4, integrationStartTime + 600, 30.0 );
+    std::shared_ptr<IntegratorSettings<> >integratorSettings =
+            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
 
     std::cout<<"Integration settings created"<<std::endl;
 
@@ -422,19 +437,21 @@ int main( ) {
     std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
                 getInitialMultiArcParameterSettings< long double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
     //parameterNames.push_back( std::make_shared< EstimatableParameterSettings >( spacecraftName, radiation_pressure_coefficient ) );
-    parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, initial_times_list_drag ));
-    parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
+    parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
+    //parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
 
     std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
     empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
     empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
-    empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
+    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
 
     parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
-            spacecraftName,"Mars", empiricalAccelerationComponents, integrationArcStartTimes ) );
+            spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_drag ) );
 
     std::shared_ptr< estimatable_parameters::EstimatableParameterSet< long double > > parametersToEstimate =
             createParametersToEstimate< long double, double >( parameterNames, bodies, multiArcPropagatorSettings );
@@ -488,22 +505,32 @@ int main( ) {
 
     // set a priori to the drag coefficients
     const int DIAGONALS = numberOfIntegrationArcs*6;
-    double aprioriuncertainty =1.0/(0.001*0.001);
+    double aprioriuncertainty =1.0/(10);
 
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
-            parametersToEstimate->template getFullParameterValues< double >( );
+    Eigen::Matrix< long double, Eigen::Dynamic, 1 > initialParameterEstimate =
+            parametersToEstimate->template getFullParameterValues< long double >( );
     int numberOfParameters = initialParameterEstimate.rows( );
+    Eigen::Matrix< long double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
+    std::cout<< DIAGONALS + numberOfIntegrationArcs << std::endl;
     // Create a 2D vector (matrix) filled with zeros
     Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
     // Fill the matrix with the values of the diagonal
-    for (int i = DIAGONALS; i < numberOfParameters - 4*numberOfIntegrationArcs ; ++i) {
+    for (int i = DIAGONALS; i < DIAGONALS + numberOfIntegrationArcs ; ++i) {
+        matrix(i,i) = aprioriuncertainty;
+    }
+    aprioriuncertainty = 1.0/(10E-9*10E-9);
+    for (int i = DIAGONALS + numberOfIntegrationArcs; i < numberOfParameters - 3*(initial_times_list_drag.size()) ; ++i) {
+        matrix(i,i) = aprioriuncertainty;
+    }
+    aprioriuncertainty = 1.0/(10E-6*10E-6);
+    for (int i = numberOfParameters - 3*(initial_times_list_drag.size()); i < numberOfParameters; ++i) {
         matrix(i,i) = aprioriuncertainty;
     }
   // Define estimation input
     std::shared_ptr< EstimationInput< long double, double  > > estimationInput =
             std::make_shared< EstimationInput< long double, double > >(
                     observedObservationCollection,
-                    Eigen::MatrixXd::Zero(0,0),//matrix,
+                    matrix,
                     std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
     // Call the function with reintegrateVariationalEquations set to true
     estimationInput->defineEstimationSettings(
@@ -520,7 +547,7 @@ int main( ) {
 
     std::shared_ptr< CovarianceAnalysisInput< long double, double > > covarianceInput =
         std::make_shared< CovarianceAnalysisInput< long double, double > >(
-                observedObservationCollection);
+                observedObservationCollection,matrix);
 
     covarianceInput->getConsiderCovariance();
     covarianceInput->defineCovarianceSettings(true, false);
@@ -641,5 +668,55 @@ int main( ) {
     file10 << std::setprecision( 21 ) << correlationMatrix ;
     file10.close();
 
+
+    // save true errors
+//    std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
+
+    Eigen::Matrix< long double, Eigen::Dynamic, 1 > TrueError =  (estimationOutput->parameterEstimate_ - truthParameters).transpose() ;
+    std::cout<< "normalized design matrix:"<< std::endl;
+    // Define the output file
+/*
+    std::ofstream fe(saveDirectory + "matrix_" + fileTag +".csv");
+    // Write the matrix to the file
+    fe << estimationOutput->normalizedDesignMatrix_;
+    // Close the file
+    fe.close();
+*/
+    //std::cout<< estimationOutput->normalizedDesignMatrix_ << std::endl;
+    //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
+    std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
+    // save formal errors
+   Eigen::Matrix< double, Eigen::Dynamic, 1> FormalError = (estimationOutput->getFormalErrorVector( ).transpose( ));
+    std::cout<<"Formal error: "<<estimationOutput->getFormalErrorVector( ).transpose( )<<std::endl;
+    //std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
+    //       estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
+
+    // Open file to save true and formal errors
+    std::ofstream errorFile(saveDirectory + "TrueErrors_" + fileTag + ".txt");
+    errorFile << std::setprecision(17);
+    // Calculate and save error ratio
+    //Eigen::Matrix<long double, Eigen::Dynamic, 1> ErrorRatio = ( ( 1.0E-3 * FormalError.segment( 0, numberOfParameters ) ).cwiseQuotient(
+    //        estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( );
+    // Calculate and save true errors
+    errorFile << TrueError << std::endl;
+    //std::cout<<"Error ratio: "<< ErrorRatio.transpose( ) << std::endl;
+
+    // Close the file
+    errorFile.close();
+    std::ofstream formalErrorFile(saveDirectory + "FormalErrors_" + fileTag + ".txt");
+    formalErrorFile << std::setprecision(17);
+    // Calculate and save error ratio
+    //Eigen::Matrix<long double, Eigen::Dynamic, 1> ErrorRatio = ( ( 1.0E-3 * FormalError.segment( 0, numberOfParameters ) ).cwiseQuotient(
+    //        estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( );
+    // Calculate and save true errors
+    formalErrorFile << FormalError << std::endl;
+    //std::cout<<"Error ratio: "<< ErrorRatio.transpose( ) << std::endl;
+
+    // Close the file
+    formalErrorFile.close();
+    std::cout<<"True and formal errors saved"<<std::endl;
+    std::cout.rdbuf(originalCoutBuffer);
+    outFile.close();
+    return 0;
 
 }
