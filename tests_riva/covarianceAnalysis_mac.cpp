@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 22/11/2024.
+//
+//
 // Created by Riva Alkahal on 07/11/2024.
 //
 
@@ -146,10 +149,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
 
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/arcLengths/";
+    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     std::string fileTag = "arcLengths_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
-                          + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr" ;
+                          + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr" ;
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -588,6 +591,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         // Create parameters to estimate
         std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
           getInitialMultiArcParameterSettings< double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
+        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                                 2, 0, 8, 8, "Mars", spherical_harmonics_cosine_coefficient_block ) );
+        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                                      2, 1, 8, 8, "Mars", spherical_harmonics_sine_coefficient_block ) );
         std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
                     createParametersToEstimate< double, double >( parameterNames, bodies );
 
@@ -1009,10 +1016,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 }
 int main() {
         int iterationNumber = 5;
-        std::vector<int> arcLengths= {3,5};
-        std::vector<int> number_of_arcs= {5,3};
-        std::vector<double> hoursperday = {10.0, 24.0};
-        std::vector<int> ihoursperday = {10,24};
+        std::vector<int> arcLengths= {5};
+        std::vector<int> number_of_arcs= {12};
+        std::vector<double> hoursperday = {10.0};
+        std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
         std::vector<double> initialTimes = { 360.0*86400.0};
         //std::vector<int> startTime = {-240, -180, -60, 0, 60, 180, 240};
@@ -1025,7 +1032,7 @@ int main() {
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {
                         for (int initialTime = 0; initialTime<initialTimes.size(); initialTime++) {
-                                double finalTime = initialTimes[initialTime] + 86400.0*15.0;
+                                double finalTime = initialTimes[initialTime] + 86400.0*60.0;
                                 for (int intperturb = 0; intperturb<perturbPos.size(); intperturb++) {
                                         arcLengthRuns( hoursperday[hours],  initialTimes[initialTime],  finalTime, arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  15,  startTime[initialTime],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);;
 

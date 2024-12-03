@@ -87,5 +87,8 @@ TUDAT_ADD_EXECUTABLE(application_test_mars_dtm22
         "arcLengthAutomated_mac.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-
+TUDAT_ADD_EXECUTABLE(covarianceAnalysis_mac
+        "covarianceAnalysis_mac.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
 
