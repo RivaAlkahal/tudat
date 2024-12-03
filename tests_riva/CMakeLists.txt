@@ -79,12 +79,12 @@ TUDAT_ADD_EXECUTABLE(propagation_testsLX
         "propagation_testsLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-TUDAT_ADD_EXECUTABLE(arcLengthAutomated_mac
-        "arcLengthAutomated_mac.cpp"
+TUDAT_ADD_EXECUTABLE(arcLengthAutomated_LX
+        "arcLengthAutomated_LX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
 
-TUDAT_ADD_EXECUTABLE(arcLengthVariations_mac
-        "arcLengthVariations_mac.cpp"
+TUDAT_ADD_EXECUTABLE(arcLengthVariations_LX
+        "arcLengthVariations_LX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )

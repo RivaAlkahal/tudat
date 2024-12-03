@@ -1,5 +1,5 @@
 //
-// Created by Riva Alkahal on 05/11/2024.
+// Created by Riva Alkahal on 07/11/2024.
 //
 
 #include <iostream>
@@ -94,8 +94,8 @@ std::map<double, double> computeNorms(const std::map<double, Eigen::VectorXd>& r
 
         return norms;
 }
-
-int main( ) {
+void arcLengthRuns( double hoursperday, double initialTime, double finalTime, int arcLength, int iterationNumber, double perturbPos, double perturbVel, int number_of_arcs, int itotalDuration, int startTime, int intperturbPos, int intperturbVel , int ihoursperday, bool performEst)
+{
     using namespace tudat;
     using namespace aerodynamics;
     using namespace simulation_setup;
@@ -115,48 +115,57 @@ int main( ) {
     using namespace tudat::orbital_element_conversions;
 
     spice_interface::loadStandardSpiceKernels( );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map1.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map3.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
 
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
+
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext1.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext2.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext3.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext4.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9.bsp" );
+
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9_ipng_mgs95j.bsp" );
 
 
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map3_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8_ipng_mgs95j.bsp" );
+//    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
+    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/arcLengths/";
 
 
-    //extended mission phases
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext1.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext2.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext3.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext4.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext8.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
-
-
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/arcLengths/";
-    std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
+    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
+    std::string fileTag = "RK78_60S_arcLengths_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+                          + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr" ;
 
     // set input options
     double epehemeridesTimeStep = 60.0;
     bool useInterpolatedEphemerides = true;
     double observationsSamplingTime = 60.0;
     double buffer = 30.0 * epehemeridesTimeStep;
-    double arcDuration = 1*86400.0;//2.0E4;
+    double arcDuration = arcLength*86400.0;//2.0E4;
     std::string dragEst = "per-halfday";//"per-rev";
     double ndays = 0.5;
     double hoursperdaydrag = 2.0;
-    double hoursperday = 10.0;
-    int iterationNumber = 6;
+    //double hoursperday = 10.0;
+    //int iterationNumber = 6;
     //const double gravitationalParameter = 4.2828378e13;
     //const double planetaryRadius = 3389.5E3;
 
@@ -167,9 +176,10 @@ int main( ) {
     //Time initialEphemerisTime = Time( 185976000 - 1.0 * 86400.0 ); // 23 November 2005, 0h
     //Time finalEphemerisTime = Time( 186580800 + 1.0 * 86400.0 ); // 30 November 2005, 0h
     // time at 2000-01-01T00:00:00
-    Time initialEphemerisTime = Time( 86400.0 * 350 ) ;
-    Time finalEphemerisTime = Time( 86400.0 * 350 + 86400.0 * 60.0 ); // 5 years later
+    Time initialEphemerisTime = Time(initialTime); //Time( 86400.0 * 350 ) ;
+    Time finalEphemerisTime = Time(finalTime);//Time( 86400.0 * 350 + 86400.0 * 60.0 ); // 5 years later
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
+
     std::cout<<"Total duration: "<<totalDuration<<std::endl;
 
     std::vector< std::string > bodiesToCreate = {
@@ -200,7 +210,7 @@ int main( ) {
 
     bodySettings.at( "Earth" )->groundStationSettings = getDsnStationSettings( );
 
-    std::string filename ="/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+    std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
     bodySettings.at( "Mars" )->atmosphereSettings = marsDtmAtmosphereSettings( filename, 3378.0E3);
 
     // Set spherical harmonics gravity field
@@ -480,7 +490,9 @@ int main( ) {
 
         // define integrator settings
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
-       std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
+       std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
+        //std::shared_ptr< IntegratorSettings< > > integratorSettings =std::make_shared< IntegratorSettings< > >
+        //           ( rungeKutta4, integrationStartTime , 30.0 );
         std::cout<<"Integration settings created"<<std::endl;
     int numberOfIntegrationArcs = integrationArcStartTimes.size( );
         std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
@@ -792,12 +804,12 @@ int main( ) {
         // Perturb initial states
         for( unsigned int i = 0; i < integrationArcStartTimes.size( ); i++ )
         {
-                initialParameterEstimate[ 0 + 6 * i ] += 0.0E0;
-                initialParameterEstimate[ 1 + 6 * i ] += 0.0E0;
-                initialParameterEstimate[ 2 + 6 * i ] += 0.0E0;
-                initialParameterEstimate[ 3 + 6 * i ] += 0.00;
-                initialParameterEstimate[ 4 + 6 * i ] += 0.00;
-                initialParameterEstimate[ 5 + 6 * i ] += 0.00;
+                initialParameterEstimate[ 0 + 6 * i ] += perturbPos;
+                initialParameterEstimate[ 1 + 6 * i ] += perturbPos;
+                initialParameterEstimate[ 2 + 6 * i ] += perturbPos;
+                initialParameterEstimate[ 3 + 6 * i ] += perturbVel;
+                initialParameterEstimate[ 4 + 6 * i ] += perturbVel;
+                initialParameterEstimate[ 5 + 6 * i ] += perturbVel;
         }
         std::cout<<"initial parameters perturbed"<<std::endl;
         parametersToEstimate->resetParameterValues( initialParameterEstimate );
@@ -851,168 +863,212 @@ int main( ) {
             covarianceInput );
     std::cout<<"covariance output created"<<std::endl;
 
+        Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
+        std::ofstream file10(saveDirectory + "correlations_" + fileTag + ".txt");
+        file10 << std::setprecision( 21 ) << correlationMatrix ;
+        file10.close();
+
+        Eigen::MatrixXd covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );
+        std::ofstream file11(saveDirectory + "covanCovariances_" + fileTag + ".txt");
+        file11 << std::setprecision( 21 ) << covarianceMatrix ;
+        file11.close();
+
+
     // Perform estimation
-    std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
-            estimationInput );
-    std::cout<<"estimation performed"<<std::endl;
+        if (performEst) {
+                std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
+                        estimationInput );
+                std::cout<<"estimation performed"<<std::endl;
 
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
+                Eigen::Matrix< double, Eigen::Dynamic, 1 > finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
 
 
-    // retrieve simulate observations
-    std::ofstream outputfile1(saveDirectory + "concatenatedlinkedIdnames" + fileTag + ".txt");
-    outputfile1 << std::setprecision(17);
-    std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
-    std::vector< double > concatenatedObservationTimes = observationsAndTimes->getConcatenatedTimeVector();
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > observationVector = observationsAndTimes->getObservationVector();
-    std::vector< LinkEnds >  concatenatedLinkEndIdNames = observationsAndTimes->getConcatenatedLinkEndIdNames();
-    std::cout << "Observation Times size:" << concatenatedObservationTimes.size() << std::endl;
-    std::cout << "Observation Vector size:" << concatenatedObservationTimes.size() << std::endl;
-    std::cout<<"concatenated link end ids: " << std::endl;
-    for (const auto &linkEnds : concatenatedLinkEndIdNames) {
-        for (const auto &linkEnd : linkEnds) {
-            outputfile1 << "Link End ID: " << linkEnd.first << std::endl;
-            outputfile1 << "Body: " << linkEnd.second.bodyName_ << ", Point: " << linkEnd.second.stationName_ << std::endl;
+                // retrieve simulate observations
+                std::ofstream outputfile1(saveDirectory + "concatenatedlinkedIdnames" + fileTag + ".txt");
+                outputfile1 << std::setprecision(17);
+                std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
+                std::vector< double > concatenatedObservationTimes = observationsAndTimes->getConcatenatedTimeVector();
+                Eigen::Matrix< double, Eigen::Dynamic, 1 > observationVector = observationsAndTimes->getObservationVector();
+                std::vector< LinkEnds >  concatenatedLinkEndIdNames = observationsAndTimes->getConcatenatedLinkEndIdNames();
+                std::cout << "Observation Times size:" << concatenatedObservationTimes.size() << std::endl;
+                std::cout << "Observation Vector size:" << concatenatedObservationTimes.size() << std::endl;
+                std::cout<<"concatenated link end ids: " << std::endl;
+                for (const auto &linkEnds : concatenatedLinkEndIdNames) {
+                        for (const auto &linkEnd : linkEnds) {
+                                outputfile1 << "Link End ID: " << linkEnd.first << std::endl;
+                                outputfile1 << "Body: " << linkEnd.second.bodyName_ << ", Point: " << linkEnd.second.stationName_ << std::endl;
 
-        }
-    }
-    outputfile1.close();
-    // Open file to save observations and times
-    std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
-    outputFile << std::setprecision(17);
-    outputFile << "station_id,observable_type,time,observation\n";
-    std::cout<<"output file created, starting loop over the sorted observations"<<std::endl;
-
-    for (const auto &observableType: sortedObservationSets) {
-        std::cout << "Observable type: " << observableType.first << std::endl;
-        for (const auto &stationId: observableType.second) {
-            std::cout << "Station ID: " << stationId.first << std::endl;
-            for (const auto &obsSetPtr: stationId.second) {
-                auto time = obsSetPtr->getObservationTimes();
-                auto observation = obsSetPtr->getObservationsVector();
-
-                std::cout << "Observation time: " << time.size() << std::endl;
-                std::cout << "Observation: " << observation.size() << std::endl;
-                // Save times and observations to file
-                for (size_t i = 0; i < time.size(); ++i)
-                {
-                    outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
+                        }
                 }
-            }
+                outputfile1.close();
+                // Open file to save observations and times
+                std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
+                outputFile << std::setprecision(17);
+                outputFile << "station_id,observable_type,time,observation\n";
+                std::cout<<"output file created, starting loop over the sorted observations"<<std::endl;
+
+                for (const auto &observableType: sortedObservationSets) {
+                        std::cout << "Observable type: " << observableType.first << std::endl;
+                        for (const auto &stationId: observableType.second) {
+                                std::cout << "Station ID: " << stationId.first << std::endl;
+                                for (const auto &obsSetPtr: stationId.second) {
+                                        auto time = obsSetPtr->getObservationTimes();
+                                        auto observation = obsSetPtr->getObservationsVector();
+
+                                        std::cout << "Observation time: " << time.size() << std::endl;
+                                        std::cout << "Observation: " << observation.size() << std::endl;
+                                        // Save times and observations to file
+                                        for (size_t i = 0; i < time.size(); ++i)
+                                        {
+                                                outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
+                                        }
+                                }
+                        }
+                }
+                outputFile.close();
+
+                // save true errors
+                Eigen::Matrix< double, Eigen::Dynamic, 1 > TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
+                std::cout<< "normalized design matrix:"<< std::endl;
+                // Define the output file
+                std::ofstream fe(saveDirectory + "matrix_"+ fileTag + ".csv");
+                // Write the matrix to the file
+                fe << estimationOutput->normalizedDesignMatrix_;
+                // Close the file
+                fe.close();
+
+                //std::cout<< estimationOutput->normalizedDesignMatrix_ << std::endl;
+                //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
+                std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
+                // save formal errors
+                Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = estimationOutput->getFormalErrorVector( );
+                std::cout<<"Formal error: "<<estimationOutput->getFormalErrorVector( ).transpose( )<<std::endl;
+                std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
+                        estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
+
+                std::ofstream errorFile(saveDirectory+"TrueError_"+fileTag+".txt");
+                errorFile<<std::setprecision(17);
+                errorFile<<TrueError<<std::endl;
+                errorFile.close();
+                std::ofstream formalErrorFile(saveDirectory+"FormalError_"+fileTag+".txt");
+                formalErrorFile<<std::setprecision(17);
+                formalErrorFile<<FormalError<<std::endl;
+                formalErrorFile.close();
+
+                std::cout<<"True and formal errors saved"<<std::endl;
+
+                // retrieve residuals
+                Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
+                Eigen::Matrix< double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
+
+                Eigen::MatrixXd residualsWithTime;
+                residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
+                residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
+
+                for ( unsigned int i = 0; i < observationVector.size( ); ++i )
+                {
+                        residualsWithTime( i, 0 ) = static_cast< Time >( concatenatedObservationTimes.at( i )
+                        ).getSeconds< long double >();
+                }
+
+                std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
+                file << std::setprecision( 17 ) << residualsWithTime;
+                file.close();
+
+                std::cout<<"residuals saved"<<std::endl;
+
+                // Retrieve estimated state history
+                // Retrieve the best iteration simulation results
+                //std::shared_ptr< propagators::SimulationResults< long double, double > > postFitSimulationResults =
+                //        estimationOutput->getBestIterationSimulationResults( );
+                // parametersToEstimate->resetParameterValues(estimationOutput->parameterHistory_.at(estimationOutput->bestIteration_));
+                //finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
+
+                std::shared_ptr<tudat::propagators::SimulationResults<double, double>> bestIterationOutput = estimationOutput->simulationResultsPerIteration_.back();//estimationOutput->bestIteration_ );
+                //std::cout << "Type of bestIterationOutput: " << typeid(*bestIterationOutput).name() << std::endl;
+
+                auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(bestIterationOutput);
+                auto singleArcResults = multiArcResults->getSingleArcResults();
+
+                // std::vector< std::shared_ptr< propagators::MultiArcSimulationResults<SingleArcSimulationResults, double, Time >>> bestIterationSimulationResultsPerArc = bestIterationOutput->getSingleArcResults();
+
+                std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
+                std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedDependentVariablesPostFitDynamic;
+                std::map< double, Eigen::Matrix< double, 6, 1 > > concatenatedStateHistoryPostFit;
+                std::cout<<singleArcResults.size()<<std::endl;
+                for ( unsigned int arcIndex = 0; arcIndex < singleArcResults.size(); ++arcIndex )
+                {
+                        // Retrieve the best iteration simulation results for the current arc
+                        //std::shared_ptr< propagators::SimulationResults< long double, Time > > bestIterationSimulationResults =
+                        //        singleArcResults[arcIndex];
+                        //singleArcResults.push_back( bestIterationSimulationResults );
+
+                        // Retrieve the state history for the current arc
+                        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
+                        // Retrieve the dependent variables history for the current arc
+                        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcDependentVariablesPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getDependentVariableHistory( );
+                        // Retrieve the state history for the current arc
+                        //  std::map< Time, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic =
+                        //        std::dynamic_pointer_cast< SingleArcVariationalSimulationResults< long double, Time > >(
+                        //               bestIterationSimulationResults )->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
+
+                        // Append the state history to the concatenated map
+                        for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
+                        {
+                                concatenatedStateHistoryPostFitDynamic[ it->first ] = it->second;
+                                //std::cout<<"concatenated state history post fit dynamic: "<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
+
+                        }
+                        // Append the dependent variables history to the concatenated map
+                        for ( auto it = arcDependentVariablesPostFitDynamic.begin(); it != arcDependentVariablesPostFitDynamic.end(); ++it )
+                        {
+                                concatenatedDependentVariablesPostFitDynamic[ it->first ] = it->second;
+                        }
+                }
+
+                // Convert the dynamic state history to fixed size
+                for ( auto it = concatenatedStateHistoryPostFitDynamic.begin(); it != concatenatedStateHistoryPostFitDynamic.end(); ++it )
+                {
+                        concatenatedStateHistoryPostFit[ it->first ] = it->second;
+                        //std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
+                }
+                writeDataMapToTextFile( concatenatedStateHistoryPostFit, "stateHistoryPropagatedPostFit_" + fileTag + ".txt", saveDirectory,
+                                        "", 18, 18 );
+
+                // Write dependent variables to file
+                writeDataMapToTextFile( concatenatedDependentVariablesPostFitDynamic, "dependentVariablesPropagatedPostFit_" + fileTag + ".txt", saveDirectory,
+                                        "", 18, 18 );
         }
-    }
-    outputFile.close();
-
-    // save true errors
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
-    std::cout<< "normalized design matrix:"<< std::endl;
-    // Define the output file
-    std::ofstream fe(saveDirectory + "matrix.csv");
-    // Write the matrix to the file
-    fe << estimationOutput->normalizedDesignMatrix_;
-    // Close the file
-    fe.close();
-
-    //std::cout<< estimationOutput->normalizedDesignMatrix_ << std::endl;
-    //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
-    std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
-    // save formal errors
-    Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = estimationOutput->getFormalErrorVector( );
-    std::cout<<"Formal error: "<<estimationOutput->getFormalErrorVector( ).transpose( )<<std::endl;
-    std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
-            estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
-
-        std::ofstream errorFile(saveDirectory+"TrueError_"+fileTag+".txt");
-        errorFile<<std::setprecision(17);
-        errorFile<<TrueError<<std::endl;
-        errorFile.close();
-        std::ofstream formalErrorFile(saveDirectory+"FormalError_"+fileTag+".txt");
-        formalErrorFile<<std::setprecision(17);
-        formalErrorFile<<FormalError<<std::endl;
-        formalErrorFile.close();
-
-    std::cout<<"True and formal errors saved"<<std::endl;
-
-    // retrieve residuals
-    Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
-    Eigen::Matrix< double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
-
-    Eigen::MatrixXd residualsWithTime;
-    residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
-    residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
-
-    for ( unsigned int i = 0; i < observationVector.size( ); ++i )
-    {
-        residualsWithTime( i, 0 ) = static_cast< Time >( concatenatedObservationTimes.at( i )
-        ).getSeconds< long double >();
-    }
-
-    std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
-    file << std::setprecision( 17 ) << residualsWithTime;
-    file.close();
-
-    std::cout<<"residuals saved"<<std::endl;
-
-    // Retrieve estimated state history
-    // Retrieve the best iteration simulation results
-    //std::shared_ptr< propagators::SimulationResults< long double, double > > postFitSimulationResults =
-    //        estimationOutput->getBestIterationSimulationResults( );
-    // parametersToEstimate->resetParameterValues(estimationOutput->parameterHistory_.at(estimationOutput->bestIteration_));
-    //finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
-
-    std::shared_ptr<tudat::propagators::SimulationResults<double, double>> bestIterationOutput = estimationOutput->simulationResultsPerIteration_.back();//estimationOutput->bestIteration_ );
-    //std::cout << "Type of bestIterationOutput: " << typeid(*bestIterationOutput).name() << std::endl;
-
-    auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(bestIterationOutput);
-    auto singleArcResults = multiArcResults->getSingleArcResults();
-
-    // std::vector< std::shared_ptr< propagators::MultiArcSimulationResults<SingleArcSimulationResults, double, Time >>> bestIterationSimulationResultsPerArc = bestIterationOutput->getSingleArcResults();
-
-    std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
-    std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedDependentVariablesPostFitDynamic;
-    std::map< double, Eigen::Matrix< double, 6, 1 > > concatenatedStateHistoryPostFit;
-    std::cout<<singleArcResults.size()<<std::endl;
-    for ( unsigned int arcIndex = 0; arcIndex < singleArcResults.size(); ++arcIndex )
-    {
-        // Retrieve the best iteration simulation results for the current arc
-        //std::shared_ptr< propagators::SimulationResults< long double, Time > > bestIterationSimulationResults =
-        //        singleArcResults[arcIndex];
-        //singleArcResults.push_back( bestIterationSimulationResults );
-
-        // Retrieve the state history for the current arc
-        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
-        // Retrieve the dependent variables history for the current arc
-        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcDependentVariablesPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getDependentVariableHistory( );
-        // Retrieve the state history for the current arc
-        //  std::map< Time, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic =
-        //        std::dynamic_pointer_cast< SingleArcVariationalSimulationResults< long double, Time > >(
-        //               bestIterationSimulationResults )->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
-
-        // Append the state history to the concatenated map
-        for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
-        {
-            concatenatedStateHistoryPostFitDynamic[ it->first ] = it->second;
-            //std::cout<<"concatenated state history post fit dynamic: "<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
-
+}
+int main() {
+        int iterationNumber = 6;
+        //std::vector<int> arcLengths = {1, 3, 5, 10, 30};
+        std::vector<int> arcLengths = {3, 5};
+	//std::vector<int> number_of_arcs = {60, 20, 12, 6, 2};
+        std::vector<int> number_of_arcs = {5, 3};
+	std::vector<double>  hoursperday = {10.0,  24.0};
+        std::vector<int> ihoursperday = {10, 24};
+        //std::vector<double>  initialTimes = {0.0,  86400.0 * 360};
+        std::vector<double>  initialTimes = {-240.0*86400.0, -180*86400.0, 0.0, 180.0*86400.0 , 86400.0 * 360};
+	std::vector<int> startTime = {-240, -180, 0, 180 ,360};
+        //std::vector<double>  perturbPos = {100.0, 1000.0};
+        std::vector<double>  perturbPos = {100.0};
+	std::vector<int> intperturbPos = {100};
+        //std::vector<double>  perturbVel = {0.001, 0.01};
+        std::vector<double>  perturbVel = {0.001};
+	std::vector<int> intperturbVel = {0001};
+        bool performEst = false;
+        for (int i = 0;i<arcLengths.size(); i++) {
+                for (int hours = 0; hours < hoursperday.size(); hours++) {
+                        for (int initialTime = 0; initialTime < initialTimes.size(); initialTime++) {
+                                double finalTime = initialTimes[initialTime] + 86400.0*15.0;
+                                for (int intperturb = 0; intperturb < perturbPos.size(); intperturb++) {
+                                        arcLengthRuns( hoursperday[hours],  initialTimes[initialTime],  finalTime,
+                                                arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb],
+                                                number_of_arcs[i],  15,  startTime[initialTime],  intperturbPos[intperturb],
+                                                intperturbVel[intperturb],ihoursperday[hours],performEst );
+                                }
+                        }
+                }
         }
-        // Append the dependent variables history to the concatenated map
-        for ( auto it = arcDependentVariablesPostFitDynamic.begin(); it != arcDependentVariablesPostFitDynamic.end(); ++it )
-        {
-            concatenatedDependentVariablesPostFitDynamic[ it->first ] = it->second;
-        }
-    }
-
-    // Convert the dynamic state history to fixed size
-    for ( auto it = concatenatedStateHistoryPostFitDynamic.begin(); it != concatenatedStateHistoryPostFitDynamic.end(); ++it )
-    {
-        concatenatedStateHistoryPostFit[ it->first ] = it->second;
-        //std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
-    }
-    writeDataMapToTextFile( concatenatedStateHistoryPostFit, "stateHistoryPropagatedPostFit_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-
-    // Write dependent variables to file
-    writeDataMapToTextFile( concatenatedDependentVariablesPostFitDynamic, "dependentVariablesPropagatedPostFit_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-
 }

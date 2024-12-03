@@ -155,7 +155,7 @@ int main( ) {
 
 //    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
     std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/propagateDynamics/";
-    std::string fileTag = "propagatenotrend-RK78-30ss-360days";
+    std::string fileTag = "propagate10trend-RK78-1ss-60days";
    bool startEstimate = false;
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -175,7 +175,7 @@ int main( ) {
     double twoWayDopplerNoise = 0.0001;
     double rangeNoise = 0.0001;
     Time initialEphemerisTime = Time(0.0);
-    Time finalEphemerisTime = Time( 86400.0 * 360.0);
+    Time finalEphemerisTime = Time( 86400.0 * 60.0);
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout << "Total duration: " << totalDuration << std::endl;
 
@@ -412,7 +412,7 @@ int main( ) {
     cosineAmplitudes[1](2,0) = -2.9036065707624e-12/(365*24*3600);
 */
     //scM/10
-/*
+
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-10/(365*24*3600);
 
     cosineAmplitudes[1](0,1) +=1.83526161335626e-10/(365*24*3600);
@@ -422,15 +422,7 @@ int main( ) {
     cosineAmplitudes[1](1,2) += -1.99682320271527e-10/(365*24*3600);
     //cosineAmplitudes[1](1,3) += 1.19185562092185e-09/(365*24*3600);
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
-*/
-/*
 
-    //scM/0.01
-========
-
-
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
 
     //scM/0.01
 /*
@@ -644,7 +636,7 @@ int main( ) {
     //        std::make_shared< IntegratorSettings< > >
     //                ( rungeKutta4, integrationStartTime + 600, 10.0 );
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
-            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
+            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 1, CoefficientSets::rungeKutta87DormandPrince );
 
 
     std::cout<<"Integration settings created"<<std::endl;
