@@ -22,6 +22,7 @@
 #include "tudat/io/solarActivityData.h"
 #include "tudat/simulation/environment_setup/createAtmosphereModel.h"
 
+#include <tudat/interface/spice/spiceInterface.h>
 
 
 namespace tudat
@@ -85,7 +86,7 @@ std::shared_ptr< aerodynamics::AtmosphereModel > createAtmosphereModel(
         const std::string& body )
 {
     using namespace tudat::aerodynamics;
-
+    using namespace tudat::spice_interface;
     // Declare return object.
     std::shared_ptr< AtmosphereModel > atmosphereModel;
 
@@ -206,11 +207,27 @@ std::shared_ptr< aerodynamics::AtmosphereModel > createAtmosphereModel(
 
         tudat::input_output::solar_activity::SolarActivityDataMap solarActivityData =
             tudat::input_output::solar_activity::readSolarActivityData( spaceWeatherFilePath );
+
         std::shared_ptr< input_output::solar_activity::SolarActivityContainer > solarActivityContainer =
             std::make_shared< input_output::solar_activity::SolarActivityContainer >( solarActivityData );
+
+
         std::function< double( const double ) > f107Function = [=](const double time)
         {
-            return solarActivityContainer->getSolarActivityData( time )->solarRadioFlux107Observed / 2.25;
+            Eigen::Vector6d marsStateWrtSun = spice_interface::getBodyCartesianStateAtEpoch( "Mars", "Sun", "ECLIPJ2000", "NONE", time );
+            Eigen::Vector3d marsPositionWrtSun = marsStateWrtSun.head<3>();
+            double marsSunDistance = marsPositionWrtSun.norm();
+            Eigen::Vector6d earthStateWrtSun = spice_interface::getBodyCartesianStateAtEpoch( "Earth", "Sun", "ECLIPJ2000", "NONE", time );
+            Eigen::Vector3d earthPositionWrtSun = earthStateWrtSun.head<3>();
+            double earthSunDistance = earthPositionWrtSun.norm();
+
+            double marsSunDistanceInAU = marsSunDistance / tudat::physical_constants::ASTRONOMICAL_UNIT;
+            double earthSunDistanceInAU = earthSunDistance / tudat::physical_constants::ASTRONOMICAL_UNIT;
+
+            double scale = earthSunDistanceInAU / marsSunDistanceInAU;
+
+            // return solarActivityContainer->getSolarActivityData( time )->solarRadioFlux107Observed / 2.25;
+            return solarActivityContainer->getSolarActivityData( time )->solarRadioFlux107Observed * scale * scale;
         };
 
         // Create atmosphere model using NRLMISE00 input function

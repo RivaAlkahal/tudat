@@ -91,4 +91,10 @@ TUDAT_ADD_EXECUTABLE(covarianceAnalysis_mac
         "covarianceAnalysis_mac.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-
+TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_mac
+        "covAnalysis_spiceProp_mac.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(frameTransformation_covAn.cpp
+        "frameTransformation_covAn.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES})

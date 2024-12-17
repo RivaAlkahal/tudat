@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 10/12/2024.
+//
+//
 // Created by Riva Alkahal on 22/11/2024.
 //
 //
@@ -149,10 +152,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
 
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/";
+    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrange/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
-                          + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr" ;
+                          + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -404,6 +407,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         dependentVariablesToSave.push_back(
                 std::make_shared< SingleAccelerationDependentVariableSaveSettings >(
                         radiation_pressure, spacecraftName, "Sun", 1 ) );
+        dependentVariablesToSave.push_back(std::make_shared<SingleDependentVariableSaveSettings>(
+                local_density_dependent_variable,spacecraftName, centralBody));
 
 
         // Define the required parameters
@@ -530,25 +535,57 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
         std::cout<<"Integration settings created"<<std::endl;
     int numberOfIntegrationArcs = integrationArcStartTimes.size( );
+
         std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
-        // start global propagation
-        Eigen::Matrix< double, 6, 1 > spacecraftInitialState =
-                bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] ) -
-                bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< double, Time >( integrationArcStartTimes[0] );
+        std::vector< Eigen::VectorXd > systemInitialStates(numberOfIntegrationArcs, Eigen::VectorXd(6));
 
-        // Create termination settings
-        std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
-                integrationEndTime );
+        // create multi arc propagation settings
+        std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
+        for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
+        {
+                std::cout<<"iteration started"<<std::endl;
+                std::cout<<i<<std::endl;
+                std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
+                std::cout<<integrationArcStartTimes.at(i)<<std::endl;
 
-        // Create propagation settings
-        std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                                                                                                                                                              spacecraftInitialState, integrationArcStartTimes[0], integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
+                systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
+                        bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
+                std::cout<<"system initial states created"<<std::endl;
+                arcPropagationSettingsList.push_back(
+                        std::make_shared< TranslationalStatePropagatorSettings< double > >
+                                ( centralBodies, accelerationModelMap, bodiesToIntegrate,
+                                  systemInitialStates.at(i), integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
+        }
 
-        SingleArcDynamicsSimulator< > dynamicsSimulator(
-                bodies, propagatorSettings );
+        std::cout<<"single arc propagation done"<<std::endl;
+        std::shared_ptr< MultiArcPropagatorSettings< double > > multiArcPropagatorSettings =
+                validateDeprecatedMultiArcSettings< double, double >(
+                        integratorSettings, std::make_shared< MultiArcPropagatorSettings< double > >( arcPropagationSettingsList ),
+                        integrationArcStartTimes, false, true );
 
-        std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
-        std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
+        MultiArcDynamicsSimulator< > dynamicsSimulator(
+            bodies, multiArcPropagatorSettings );
+
+
+        std::map< double, Eigen::Matrix< double,Eigen::Dynamic,1> > integrationResult;
+        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > dependentVariableResult;
+        for ( unsigned int arcIndex = 0; arcIndex < numberOfIntegrationArcs; ++arcIndex ) {
+                auto singleArcResult = dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
+                                    arcIndex )->getEquationsOfMotionNumericalSolution( );
+                integrationResult.insert(singleArcResult.begin(), singleArcResult.end());
+                auto singleArcDepVars = dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
+                                    arcIndex )->getDependentVariableHistory( );
+                dependentVariableResult.insert(singleArcDepVars.begin(), singleArcDepVars.end());
+                // std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+                // std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
+        }
+        writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
+                                "", 18, 18 );
+        writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
+                                "", 18, 18 );
+
+
+
         // save the last column of dependentVariableResult
         std::map<double, Eigen::VectorXd> relativePosEarthtoMars;
         for (const auto& [key, vector] : dependentVariableResult) {
@@ -563,10 +600,6 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 }
         }
 
-        writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
-                                "", 18, 18 );
-        writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
-                                "", 18, 18 );
 
         // Compute the norms of the relative positions
         std::map<double, double> normsEarthtoMars = computeNorms(relativePosEarthtoMars);
@@ -590,41 +623,6 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                                 "", 18, 18 );
 
 
-        std::map< double, Eigen::VectorXd > stateVectorsAtStartTimes;
-
-    // create multi arc propagation settings
-    std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
-    for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
-    {
-        std::cout<<"iteration started"<<std::endl;
-        std::cout<<i<<std::endl;
-        std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
-        std::cout<<integrationArcStartTimes.at(i)<<std::endl;
-        // get system initial states from the global propagation
-        // Check if the start time exists in the integration results
-        if (integrationResult.find( integrationArcStartTimes.at(i)) != integrationResult.end())
-        {
-            // Store the state vector at the start time
-            stateVectorsAtStartTimes[ integrationArcStartTimes.at(i)] = integrationResult[ integrationArcStartTimes.at(i)];
-        }
-        else
-        {
-            std::cerr << "Start time " <<  integrationArcStartTimes.at(i) << " not found in integration results." << std::endl;
-        }
-        //systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
-        //        bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
-        std::cout<<"system initial states created"<<std::endl;
-        arcPropagationSettingsList.push_back(
-                std::make_shared< TranslationalStatePropagatorSettings< double > >
-                        ( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                          stateVectorsAtStartTimes[ integrationArcStartTimes.at(i)], integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
-    }
-
-    std::cout<<"single arc propagation done"<<std::endl;
-    std::shared_ptr< MultiArcPropagatorSettings< double > > multiArcPropagatorSettings =
-            validateDeprecatedMultiArcSettings< double, double >(
-                    integratorSettings, std::make_shared< MultiArcPropagatorSettings< double > >( arcPropagationSettingsList ),
-                    integrationArcStartTimes, false, true );
 
         // Create parameters to estimate
         std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
@@ -702,6 +700,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
     linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
 
+    // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
+    // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
     std::cout<<"link ends created"<<std::endl;
 
     std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
@@ -779,6 +779,19 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 return result;
             };
 
+        // noiseFunctions[ two_way_doppler ] =
+        //    [=](const double input) -> Eigen::VectorXd {
+        //            // Call the original function that returns a double
+        //            double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+        //                    createBoostContinuousRandomVariableGeneratorFunction(
+        //                            tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
+        //                    ), input
+        //            );
+        //            // Convert the double to Eigen::VectorXd
+        //            Eigen::VectorXd result(1);
+        //            result(0) = noiseValue;
+        //            return result;
+        // };
 
 
     std::cout<<"noise functions created"<<std::endl;
@@ -854,12 +867,36 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     std::map< observation_models::ObservableType, double > weightPerObservable;
     //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
     weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
-    //weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+    // weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
 
     estimationInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
     std::cout<<"estimation input created"<<std::endl;
+        std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
 
+        std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
+        outputFile << std::setprecision(17);
+        outputFile << "station_id,observable_type,time,observation\n";
+        std::cout<<"output file created, starting loop over the sorted observations"<<std::endl;
 
+        for (const auto &observableType: sortedObservationSets) {
+                std::cout << "Observable type: " << observableType.first << std::endl;
+                for (const auto &stationId: observableType.second) {
+                        std::cout << "Station ID: " << stationId.first << std::endl;
+                        for (const auto &obsSetPtr: stationId.second) {
+                                auto time = obsSetPtr->getObservationTimes();
+                                auto observation = obsSetPtr->getObservationsVector();
+
+                                std::cout << "Observation time: " << time.size() << std::endl;
+                                std::cout << "Observation: " << observation.size() << std::endl;
+                                // Save times and observations to file
+                                for (size_t i = 0; i < time.size(); ++i)
+                                {
+                                        outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
+                                }
+                        }
+                }
+        }
+        outputFile.close();
 
     std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
             std::make_shared< CovarianceAnalysisInput< double, double > >(
@@ -869,6 +906,12 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
             covarianceInput );
     std::cout<<"covariance output created"<<std::endl;
+
+        std::ofstream fe(saveDirectory + "normalizedDesignMatrix" + fileTag + ".txt");
+        // Write the matrix to the file
+        fe << covarianceOutput->normalizedDesignMatrix_;
+        // Close the file
+        fe.close();
 
         Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
         std::ofstream file10 (saveDirectory + "correlationMatrix_" + fileTag + ".txt");
@@ -881,6 +924,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         file11.close( );
 
         Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = covarianceOutput->getFormalErrorVector( );
+        std::cout<<"formal error: "<<covarianceOutput->getFormalErrorVector( ).transpose( )<<std::endl;
         std::ofstream file12 (saveDirectory + "FormalError_" + fileTag + ".txt");
         file12 << std::setprecision(21) << FormalError ;
         file12.close( );
@@ -1054,7 +1098,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 int main() {
         int iterationNumber = 5;
         std::vector<int> arcLengths= {5};
-        std::vector<int> number_of_arcs= {72};
+        std::vector<int> number_of_arcs= {1, 3, 12};
         std::vector<double> hoursperday = {10.0};
         std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
@@ -1065,13 +1109,15 @@ int main() {
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
         std::vector<int> intperturbVel = {0001};
+        std::vector<int> totalDuration = {5,15,60};
+        std::vector<double> finalTimes=  {86400.0*5.0,86400.0*15.0,86400.0*60.0};
         bool performEst = false;
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {
-                        for (int initialTime = 0; initialTime<initialTimes.size(); initialTime++) {
-                                double finalTime = initialTimes[initialTime] + 86400.0*360.0;
+                        for (int initialTime = 0; initialTime<finalTimes.size(); initialTime++) {
+                                double finalTime = initialTimes[initialTime] + finalTimes.at(initialTime);
                                 for (int intperturb = 0; intperturb<perturbPos.size(); intperturb++) {
-                                        arcLengthRuns( hoursperday[hours],  initialTimes[initialTime],  finalTime, arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  360,  startTime[initialTime],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);;
+                                        arcLengthRuns( hoursperday[hours],  initialTimes[0],  finalTimes.at(initialTime), arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  totalDuration.at(initialTime),  startTime[initialTime],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);;
 
                                 }
 

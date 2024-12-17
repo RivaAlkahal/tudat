@@ -88,6 +88,7 @@ namespace aerodynamics
         double difference = marsDate::dateDifference(targetDate, nearestDate);
         // convert the difference in days to seconds, and devide them by the number of seconds in a martian year to get the day of year
         double dayOfYear = difference*24*3600 / 88668.0; // 88668 seconds is the length of a martian day (24.63 h * 3600 s/h)
+        // std::cout<<"Day of year: "<<dayOfYear<<std::endl;
         return dayOfYear;
     }
 
@@ -290,26 +291,33 @@ namespace aerodynamics
         //Get the day of year
         marsDate date2 = marsDate(year_, month_, day_, hours_ , minutes_, 0.0);
         double doy = date2.marsDayofYear(date2);
-        //std::cout << "doy: " << doy << std::endl;
+        // std::cout << "doy: " << doy << std::endl;
         //Get the local solar time
         double t = computeLocalSolarTime(longitude, day_, month_, year_, hours_, minutes_); //hours
+        // std::cout << "LST: " << t << std::endl;
         //Get the local solar time in radians + pi.
         double hl0 = omega*t+ mathematical_constants::PI;
-        //std::cout << "hl: " << omega*t << std::endl;
+        // std::cout << "hl: " << omega*t << std::endl;
         double cos2h = cos(hl0)* cos(hl0) - sin(hl0)*sin(hl0);
         double sin2h = 2.0*sin(hl0)*cos(hl0);
         //flux terms:
         double ff0 = 0.0;
         double F = currentF107_ - 65.0;
+        //double F = 0.0;
         //std::cout<<"currentF107 "<<currentF107_<<std::endl;
         double F2 = F*F;
         //std::cout << "F: " << F << std::endl;
         double f0 = coefficients_[4][indexg]*F + coefficients_[39][indexg] * F2;
+        //std::cout<<"f0initial: "<<f0<<std::endl;
         double f1f = 1.0 + f0*ff0; // coupling terms
         //flux + latitude terms
         f0 = f0+ coefficients_[1][indexg]*currentLegendrePolynomials_[2] + coefficients_[2][indexg]*currentLegendrePolynomials_[3]
                 + coefficients_[3][indexg]*currentLegendrePolynomials_[4] + coefficients_[58][indexg]*currentLegendrePolynomials_[6]
                 + coefficients_[59][indexg]*currentLegendrePolynomials_[1] + coefficients_[60][indexg]*currentLegendrePolynomials_[5];
+        double newf0 =  coefficients_[1][indexg]*currentLegendrePolynomials_[2] + coefficients_[2][indexg]*currentLegendrePolynomials_[3]
+                + coefficients_[3][indexg]*currentLegendrePolynomials_[4] + coefficients_[58][indexg]*currentLegendrePolynomials_[6]
+                + coefficients_[59][indexg]*currentLegendrePolynomials_[1] + coefficients_[60][indexg]*currentLegendrePolynomials_[5];
+        //std::cout<<"newf0: "<<newf0<<std::endl;
         // symmetrical and seasonal annual terms
         double PA = coefficients_[5][indexg]* cos(Omega*doy) + coefficients_[6][indexg]* sin(Omega*doy)
                 + coefficients_[7][indexg]* cos(Omega*doy) * F + coefficients_[8][indexg]* sin(Omega*doy) * F
@@ -337,6 +345,7 @@ namespace aerodynamics
         double da41 = computeDustStorm( Ls_ );
         double fpds = coefficients_[40][indexg]*da41 + coefficients_[69][indexg]*taus[3];
         double Gl = fpds + f0 + PA + PSA + PD;
+
         return Gl;
     }
 
@@ -352,9 +361,8 @@ namespace aerodynamics
         double T0 = coefficients_[0][indexg];
         double Ti;
         double Gl = computeGl_Subr(latitude, longitude, minutes_, hours_, day_ , month_, year_, indexg);
-        //std::cout << "Gl: " << Gl << std::endl;
-        //std::cout << "T0: " << T0 << std::endl;
         Ti = T0*(1.0 + Gl);
+
         return Ti;
     }
     // Function to compute gamma parameter
@@ -392,10 +400,10 @@ namespace aerodynamics
         //std::cout << "currentGeopotentialAltitude_: " << currentGeopotentialAltitude_ << std::endl;
         double gamma= computeGamma( latitude, longitude, minutes_, hours_, day_ , month_, year_, indexm); //km^-1
         currentTemperature_z = currentTemperature_inf - (currentTemperature_inf - currentTemperature_138)* exp(-sigma*currentGeopotentialAltitude_);
-       // std::cout << "T138: " << currentTemperature_138 << std::endl;
-       // std::cout << "Tinf: " << currentTemperature_inf << std::endl;
-       // std::cout << "exp(-sigma*currentGeopotentialAltitude_): " << exp(-sigma*currentGeopotentialAltitude_) << std::endl;
-       // std::cout << "Tz: " << currentTemperature_z << std::endl;
+        //std::cout << "T138: " << currentTemperature_138 << std::endl;
+        // std::cout << "Tinf: " << currentTemperature_inf << std::endl;
+        // std::cout << "exp(-sigma*currentGeopotentialAltitude_): " << exp(-sigma*currentGeopotentialAltitude_) << std::endl;
+        // std::cout << "Tz: " << currentTemperature_z << std::endl;
 
         double fi = pow((currentTemperature_138/currentTemperature_z),(1+alpha_[indexm]+gamma))* exp(-sigma*gamma*currentGeopotentialAltitude_);
         //std::cout << "fi: " << fi << std::endl;
