@@ -134,7 +134,6 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
 
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
@@ -158,11 +157,6 @@ int main( ) {
     std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/propagateDynamics/";
     std::string fileTag = "propagate10trend-RK78-1ss-60days";
    bool startEstimate = false;
-========
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
-    std::string fileTag = "propagateAll10trend-RK78-30ss";
-    bool startEstimate = false;
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
     // set input options
     double epehemeridesTimeStep = 60.0;
     bool useInterpolatedEphemerides = true;

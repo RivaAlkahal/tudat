@@ -73,6 +73,8 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/arcLengthVariations_mac.cpp
                     ../tests_riva/arcLengthAutomated_mac.cpp
                     ../tests_riva/covarianceAnalysis_mac.cpp
+                    ../tests_riva/covarianceAnalysis_LX.cpp
+                    ../tests_riva/covAnalysis_spiceProp_LX.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES
