@@ -307,9 +307,6 @@ std::string getDependentVariableName(
     case visible_source_area:
         variableName = "Visible area";
         break;
-    case solar_longitude:
-        variableName = "Solar longitude";
-        break;
     case vehicle_panel_inertial_surface_normals:
         variableName = "Vehicle surface panel inertial surface normals";
         break;
@@ -327,6 +324,9 @@ std::string getDependentVariableName(
         break;
     case nrlmsise_input_data:
         variableName = "NRLMSISE00 input data vector";
+        break;
+    case solar_longitude:
+        variableName = "Solar longitude";
         break;
     default:
         std::string errorMessage = "Error, dependent variable " +

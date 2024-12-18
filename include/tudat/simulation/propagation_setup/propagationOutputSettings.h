@@ -142,10 +142,8 @@ enum PropagationDependentVariables
     vehicle_surface_panel_radiation_pressure_force = 69,
     paneled_radiation_source_per_panel_irradiance = 70,
     paneled_radiation_source_geometry = 71,
-    nrlmsise_input_data = 72
-
-    visible_source_area = 66,
-    solar_longitude = 67
+    nrlmsise_input_data = 72,
+    solar_longitude = 73
 };
 
 // Functional base class for defining settings for dependent variables that are to be saved during propagation

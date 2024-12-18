@@ -1120,7 +1120,6 @@ std::vector< std::string > > createEnvironmentUpdaterSettingsForDependentVariabl
     case solar_longitude:
         variablesToUpdate[ body_mass_distribution_update ].push_back( dependentVariableSaveSettings->associatedBody_ );
         break;
-        default:
     case vehicle_panel_inertial_surface_normals:
         variablesToUpdate[ body_segment_orientation_update ].push_back( dependentVariableSaveSettings->associatedBody_ );
         variablesToUpdate[ body_rotational_state_update ].push_back( dependentVariableSaveSettings->associatedBody_ );

@@ -152,7 +152,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
 
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrange/";
+    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/twowaydoppler/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                           + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
@@ -696,12 +696,12 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     }
     // Define (arbitrary) link ends for each observable
     std::map< ObservableType, std::vector< LinkEnds > > linkEndsPerObservable;
-    linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 0 ] );
-    linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
-    linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
+    // linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 0 ] );
+    // linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
+    // linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
 
-    // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
-    // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
+    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
+    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
     std::cout<<"link ends created"<<std::endl;
 
     std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
@@ -765,33 +765,33 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
 // Create the noise functions that return Eigen::VectorXd
 
-    noiseFunctions[ one_way_range ] =
-            [=](const double input) -> Eigen::VectorXd {
-                // Call the original function that returns a double
-                double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
-                        createBoostContinuousRandomVariableGeneratorFunction(
-                                tudat::statistics::normal_boost_distribution, { 0.0, rangeNoise }, 0.0
-                        ), input
-                );
-                // Convert the double to Eigen::VectorXd
-                Eigen::VectorXd result(1);
-                result(0) = noiseValue;
-                return result;
-            };
+    // noiseFunctions[ one_way_range ] =
+    //         [=](const double input) -> Eigen::VectorXd {
+    //             // Call the original function that returns a double
+    //             double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+    //                     createBoostContinuousRandomVariableGeneratorFunction(
+    //                             tudat::statistics::normal_boost_distribution, { 0.0, rangeNoise }, 0.0
+    //                     ), input
+    //             );
+    //             // Convert the double to Eigen::VectorXd
+    //             Eigen::VectorXd result(1);
+    //             result(0) = noiseValue;
+    //             return result;
+    //         };
 
-        // noiseFunctions[ two_way_doppler ] =
-        //    [=](const double input) -> Eigen::VectorXd {
-        //            // Call the original function that returns a double
-        //            double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
-        //                    createBoostContinuousRandomVariableGeneratorFunction(
-        //                            tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
-        //                    ), input
-        //            );
-        //            // Convert the double to Eigen::VectorXd
-        //            Eigen::VectorXd result(1);
-        //            result(0) = noiseValue;
-        //            return result;
-        // };
+        noiseFunctions[ two_way_doppler ] =
+           [=](const double input) -> Eigen::VectorXd {
+                   // Call the original function that returns a double
+                   double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+                           createBoostContinuousRandomVariableGeneratorFunction(
+                                   tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
+                           ), input
+                   );
+                   // Convert the double to Eigen::VectorXd
+                   Eigen::VectorXd result(1);
+                   result(0) = noiseValue;
+                   return result;
+        };
 
 
     std::cout<<"noise functions created"<<std::endl;
@@ -866,8 +866,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     );
     std::map< observation_models::ObservableType, double > weightPerObservable;
     //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
-    weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
-    // weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+    // weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
+    weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
 
     estimationInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
     std::cout<<"estimation input created"<<std::endl;
@@ -907,9 +907,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
             covarianceInput );
     std::cout<<"covariance output created"<<std::endl;
 
-        std::ofstream fe(saveDirectory + "normalizedDesignMatrix" + fileTag + ".txt");
+        std::ofstream fe(saveDirectory + "unnormalizedDesignMatrix" + fileTag + ".txt");
         // Write the matrix to the file
-        fe << covarianceOutput->normalizedDesignMatrix_;
+        fe << covarianceOutput->getUnnormalizedDesignMatrix( );
         // Close the file
         fe.close();
 

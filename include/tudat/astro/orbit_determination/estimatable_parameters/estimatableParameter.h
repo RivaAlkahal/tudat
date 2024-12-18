@@ -86,8 +86,7 @@ enum EstimatebleParametersEnum
     source_perpendicular_direction_radiation_pressure_scaling_factor,
     specular_reflectivity,
     diffuse_reflectivity,
-    mode_coupled_tidal_love_numbers
-    periodic_gravity_field_variation_amplitudes,
+    mode_coupled_tidal_love_numbers,
     piece_wise_tabulated_gravity_field_variation_amplitudes
 };
 
