@@ -50,7 +50,6 @@ set(aerodynamics_HEADERS
         "marsDtmAtmosphereModel.h"
 )
 
-if (TUDAT_BUILD_WITH_NRLMSISE00)
     set(aerodynamics_SOURCES
             "${aerodynamics_SOURCES}"
             "nrlmsise00Atmosphere.cpp"
@@ -72,19 +71,3 @@ if (TUDAT_BUILD_WITH_NRLMSISE00)
             #        tudat_interpolators
             #        PRIVATE_LINKS "${Boost_LIBRARIES}"
             )
-    else ()
-    # Add library.
-    TUDAT_ADD_LIBRARY("aerodynamics"
-            "${aerodynamics_SOURCES}"
-            "${aerodynamics_HEADERS}"
-            #        PUBLIC_LINKS
-            #        tudat_input_output
-            #        tudat_geometric_shapes
-            #        tudat_reference_frames
-            #        tudat_interpolators
-            #        PRIVATE_LINKS "${Boost_LIBRARIES}"
-            #        PRIVATE_INCLUDES "${EIGEN3_INCLUDE_DIRS}" "${Boost_INCLUDE_DIRS}"
-            )
-
-endif ()
-

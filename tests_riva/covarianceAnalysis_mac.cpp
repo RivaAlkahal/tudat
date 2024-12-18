@@ -151,7 +151,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
-    std::string fileTag = "arcLengths_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+    std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                           + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr" ;
 
     // set input options
@@ -487,6 +487,44 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     integrationArcLimits.push_back( currentStartTime + arcOverlap );
     std::cout<<"arc times created"<<std::endl;
 
+        // observations times
+        int days = static_cast<int>(totalDuration / physical_constants::JULIAN_DAY );
+        std::cout<<"days: "<<days<<std::endl;
+        std::cout<<integrationArcStartTimes.size( )<<std::endl;
+        std::vector<double> initial_times_list = { integrationArcStartTimes[0] + buffer};
+        if (hoursperday > 20.0) { days = days-1; }
+
+        for (int day = 1; day < days  ; ++day) {
+                initial_times_list.push_back(integrationArcStartTimes[0] + buffer + day * 24 * 3600);
+        }
+        std::vector<double> final_times_list = { initial_times_list[0] + hoursperday * 3600 };
+        for (int day = 1; day < days ; ++day) {
+                final_times_list.push_back(initial_times_list[day] + hoursperday * 3600);
+        }
+        std::cout<< " final times list size: " <<final_times_list.size()<<std::endl;
+        std::vector<double> observationTimesList;
+        for (int i = 0; i < final_times_list.size(); ++i) {
+                double start = initial_times_list[i];
+                std::cout<<"start time: "<<start<<std::endl;
+                double end = final_times_list[i];
+                std::cout<<"end time: "<<end<<std::endl;
+                for (double time = start; time < end ; time += 10) {
+                        observationTimesList.push_back(time);
+                }
+        }
+        std::cout<< "Observation times created" << std::endl;
+
+        // Retrieve state history from SPICE
+        std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > spiceStateHistory;
+        for ( Time t : observationTimesList )
+        {
+                spiceStateHistory[ t.getSeconds< long double >() ] =
+                        bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
+                        bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
+        }
+        writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
+                                "", 18, 18 );
+
         // define integrator settings
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
@@ -595,37 +633,36 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                                  2, 0, 8, 8, "Mars", spherical_harmonics_cosine_coefficient_block ) );
         parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
                                       2, 1, 8, 8, "Mars", spherical_harmonics_sine_coefficient_block ) );
+
+        std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
+        //periodic gravity field
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
+        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPeriod;
+        parameterNames.push_back( std::make_shared< PeriodicGravityFieldVariationEstimatableParameterSettings >(
+                centralBody, cosineBlockIndicesPerPeriod, sineBlockIndicesPerPeriod ) );
+
+        std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPower;
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
+       // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
+       // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
+        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
+        //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
+                "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
+
         std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
                     createParametersToEstimate< double, double >( parameterNames, bodies );
 
         std::cout<<"parameters to estimate created"<<std::endl;
 
-        // observations times
-        int days = static_cast<int>(totalDuration / physical_constants::JULIAN_DAY );
-        std::cout<<"days: "<<days<<std::endl;
-        std::cout<<integrationArcStartTimes.size( )<<std::endl;
-        std::vector<double> initial_times_list = { integrationArcStartTimes[0] + buffer};
-        if (hoursperday > 20.0) { days = days-1; }
-
-        for (int day = 1; day < days  ; ++day) {
-                initial_times_list.push_back(integrationArcStartTimes[0] + buffer + day * 24 * 3600);
-        }
-        std::vector<double> final_times_list = { initial_times_list[0] + hoursperday * 3600 };
-        for (int day = 1; day < days ; ++day) {
-                final_times_list.push_back(initial_times_list[day] + hoursperday * 3600);
-        }
-        std::cout<< " final times list size: " <<final_times_list.size()<<std::endl;
-        std::vector<double> observationTimesList;
-        for (int i = 0; i < final_times_list.size(); ++i) {
-                double start = initial_times_list[i];
-                std::cout<<"start time: "<<start<<std::endl;
-                double end = final_times_list[i];
-                std::cout<<"end time: "<<end<<std::endl;
-                for (double time = start; time < end ; time += 10) {
-                        observationTimesList.push_back(time);
-                }
-        }
-        std::cout<< "Observation times created" << std::endl;
 
 
     // Create link ends
@@ -1017,13 +1054,13 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 int main() {
         int iterationNumber = 5;
         std::vector<int> arcLengths= {5};
-        std::vector<int> number_of_arcs= {12};
+        std::vector<int> number_of_arcs= {72};
         std::vector<double> hoursperday = {10.0};
         std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
-        std::vector<double> initialTimes = { 360.0*86400.0};
+        std::vector<double> initialTimes = { 0.0*86400.0};
         //std::vector<int> startTime = {-240, -180, -60, 0, 60, 180, 240};
-        std::vector<int> startTime = {360};
+        std::vector<int> startTime = {0};
         std::vector<double> perturbPos = {100.0};
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
@@ -1032,9 +1069,9 @@ int main() {
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {
                         for (int initialTime = 0; initialTime<initialTimes.size(); initialTime++) {
-                                double finalTime = initialTimes[initialTime] + 86400.0*60.0;
+                                double finalTime = initialTimes[initialTime] + 86400.0*360.0;
                                 for (int intperturb = 0; intperturb<perturbPos.size(); intperturb++) {
-                                        arcLengthRuns( hoursperday[hours],  initialTimes[initialTime],  finalTime, arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  15,  startTime[initialTime],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);;
+                                        arcLengthRuns( hoursperday[hours],  initialTimes[initialTime],  finalTime, arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  360,  startTime[initialTime],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);;
 
                                 }
 
