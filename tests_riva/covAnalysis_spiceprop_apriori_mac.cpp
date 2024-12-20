@@ -1,4 +1,7 @@
 //
+// Created by Riva Alkahal on 20/12/2024.
+//
+//
 // Created by Riva Alkahal on 10/12/2024.
 //
 //
@@ -152,7 +155,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
 
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrange_updated_newoutputstocompare/";
+    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrangecapped/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                           + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
@@ -898,14 +901,14 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         }
         outputFile.close();
         // Create a 2D vector (matrix) filled with zeros
-        // const int DIAGONALS = numberOfIntegrationArcs*6;
-        // Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-        //  // Fill the matrix with the values of the diagonal
-        // for (int i = DIAGONALS; i < numberOfParameters; ++i) {
-        //     matrix(i,i) = aprioriuncertainty;
-        // }
-        // // print matrix
-        // std::cout<<matrix<<std::endl;
+        const int DIAGONALS = numberOfIntegrationArcs*6;
+        Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
+         // Fill the matrix with the values of the diagonal
+        for (int i = DIAGONALS; i < numberOfParameters; ++i) {
+            matrix(i,i) = aprioriuncertainty;
+        }
+        // print matrix
+        std::cout<<matrix<<std::endl;
     std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
             std::make_shared< CovarianceAnalysisInput< double, double > >(
                     observationsAndTimes );
@@ -920,30 +923,6 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         fe << covarianceOutput->getUnnormalizedDesignMatrix( );
         // Close the file
         fe.close();
-
-        std::ofstream fe2(saveDirectory + "normalizedDesignMatrix" + fileTag + ".txt");
-        // Write the matrix to the file
-        fe2 << covarianceOutput->getNormalizedDesignMatrix( );
-        // Close the file
-        fe2.close();
-
-        std::ofstream fe3(saveDirectory + "weightsMatrixDiagonal" + fileTag + ".txt");
-        // Write the matrix to the file
-        fe3 << covarianceOutput->weightsMatrixDiagonal_;
-        // Close the file
-        fe3.close();
-
-        std::ofstream fe4(saveDirectory + "normalizedCovarianceMatrix" + fileTag + ".txt");
-        // Write the matrix to the file
-        fe4 << covarianceOutput->normalizedCovarianceMatrix_;
-        // Close the file
-        fe4.close();
-
-        std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal" + fileTag + ".txt");
-        // Write the matrix to the file
-        fe5 << covarianceOutput->designMatrixTransformationDiagonal_;
-        // Close the file
-        fe5.close();
 
         Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
         std::ofstream file10 (saveDirectory + "correlationMatrix_" + fileTag + ".txt");
@@ -1141,8 +1120,8 @@ int main() {
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
         std::vector<int> intperturbVel = {0001};
-        std::vector<int> totalDuration = {5,15};
-        std::vector<double> finalTimes=  {86400.0*5.0,86400.0*15.0};
+        std::vector<int> totalDuration = {5,15,60};
+        std::vector<double> finalTimes=  {86400.0*5.0,86400.0*15.0,86400.0*60.0};
         bool performEst = false;
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {

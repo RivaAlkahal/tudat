@@ -73,6 +73,7 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/covarianceAnalysis_mac.cpp
                     ../tests_riva/covAnalysis_spiceProp_mac.cpp
                     ../tests_riva/frameTransformation_covAn.cpp
+                    ../tests_riva/covAnalysis_spiceprop_apriori_mac.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES
