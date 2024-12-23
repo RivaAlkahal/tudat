@@ -152,9 +152,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
 
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrange_updated_newoutputstocompare/";
+    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrange_updated_finalcomparison/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
-    std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+    std::string fileTag = "withoutEstInput1234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                           + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
 
     // set input options
@@ -173,7 +173,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
     double oneWayDopplerNoise = 0.0001;
     double twoWayDopplerNoise = 0.0001;
-    double rangeNoise = 0.0001;
+    double rangeNoise = 1.0;
     // Select ephemeris time range (based on available data in loaded SPICE ephemeris)
     //Time initialEphemerisTime = Time( 185976000 - 1.0 * 86400.0 ); // 23 November 2005, 0h
     //Time finalEphemerisTime = Time( 186580800 + 1.0 * 86400.0 ); // 30 November 2005, 0h
@@ -635,7 +635,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
         //periodic gravity field
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
-        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
@@ -697,7 +697,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     // Define (arbitrary) link ends for each observable
     std::map< ObservableType, std::vector< LinkEnds > > linkEndsPerObservable;
     linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 0 ] );
-    linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
+    //linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
     linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
 
     // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
@@ -847,30 +847,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     //print matrix
     //std::cout<<matrix<<std::endl;
 
-    // Define estimation input
-    std::shared_ptr< EstimationInput< double, double  > > estimationInput =
-            std::make_shared< EstimationInput< double, double > >(
-                    observationsAndTimes,
-                    Eigen::MatrixXd::Zero(0,0),
-                    std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
-    // Call the function with reintegrateVariationalEquations set to true
-    estimationInput->defineEstimationSettings(
-            true,  // reintegrateEquationsOnFirstIteration
-            true,  // reintegrateVariationalEquations
-            true,  // saveDesignMatrix
-            true,  // printOutput
-            true,  // saveResidualsAndParametersFromEachIteration
-            true, // saveStateHistoryForEachIteration
-            1.0E8, // limitConditionNumberForWarning
-            true   // conditionNumberWarningEachIteration
-    );
-    std::map< observation_models::ObservableType, double > weightPerObservable;
-    //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
-    weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
-    // weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
-
-    estimationInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
-    std::cout<<"estimation input created"<<std::endl;
+    // std::cout<<"estimation input created"<<std::endl;
         std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
 
         std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
@@ -906,10 +883,16 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         // }
         // // print matrix
         // std::cout<<matrix<<std::endl;
+        std::map< observation_models::ObservableType, double > weightPerObservable;
+        //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
+        weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
+        // weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+        //weightPerObservable[ one_way_range ] = 1;
     std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
             std::make_shared< CovarianceAnalysisInput< double, double > >(
                     observationsAndTimes );
     std::cout<<"covariance input created"<<std::endl;
+        covarianceInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
 
     std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
             covarianceInput );
@@ -963,6 +946,25 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
     // Perform estimation
         if (performEst) {
+
+                // Define estimation input
+                std::shared_ptr< EstimationInput< double, double  > > estimationInput =
+                        std::make_shared< EstimationInput< double, double > >(
+                                observationsAndTimes,
+                                Eigen::MatrixXd::Zero(0,0),
+                                std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
+                // Call the function with reintegrateVariationalEquations set to true
+                estimationInput->defineEstimationSettings(
+                        true,  // reintegrateEquationsOnFirstIteration
+                        true,  // reintegrateVariationalEquations
+                        true,  // saveDesignMatrix
+                        true,  // printOutput
+                        true,  // saveResidualsAndParametersFromEachIteration
+                        true, // saveStateHistoryForEachIteration
+                        1.0E8, // limitConditionNumberForWarning
+                        true   // conditionNumberWarningEachIteration
+                );
+
                 std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
                         estimationInput );
                 std::cout<<"estimation performed"<<std::endl;
@@ -1141,8 +1143,8 @@ int main() {
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
         std::vector<int> intperturbVel = {0001};
-        std::vector<int> totalDuration = {5,15};
-        std::vector<double> finalTimes=  {86400.0*5.0,86400.0*15.0};
+        std::vector<int> totalDuration = {15,60};
+        std::vector<double> finalTimes=  {86400.0*15.0, 86400.0*60.0};
         bool performEst = false;
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {

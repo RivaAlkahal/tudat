@@ -50,6 +50,67 @@
 
 #include "tudat/astro/ground_stations/transmittingFrequencies.h"
 
+struct GravityCoefficient {
+        int degree = 0;    // Degree (n)
+        int order = 0;     // Order (m)
+        double Cnm = 0.0;  // Cosine coefficient
+        double Snm = 0.0;  // Sine coefficient
+        double CnmErr = 0.0; // Error in Cnm
+        double SnmErr = 0.0; // Error in Snm
+};
+
+
+void loadGravityFieldFile(const std::string& filename,
+                          std::vector<GravityCoefficient>& coefficients) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+                throw std::runtime_error("Unable to open file: " + filename);
+        }
+        // Skip the header line
+        std::string header;
+        if (!std::getline(file, header)) {
+                throw std::runtime_error("File is empty or header is missing.");
+        }
+
+        // Read coefficients
+        std::string line;
+        while (std::getline(file, line)) {
+                std::replace(line.begin(), line.end(), ',', ' ');
+
+                std::istringstream lineStream(line);
+                GravityCoefficient coeff;
+
+                lineStream >> coeff.degree >> coeff.order
+                           >> coeff.Cnm >> coeff.Snm
+                           >> coeff.CnmErr >> coeff.SnmErr;
+
+                if (lineStream.fail()) {
+                        throw std::runtime_error("File format is incorrect in the coefficients section.");
+                }
+
+                coefficients.push_back(coeff);
+        }
+
+        file.close();
+}
+
+
+void extractErrorsWithinRange(
+    const std::vector<GravityCoefficient>& coefficients,
+    int minDegree, int maxDegree,
+    std::vector<double>& cnmErrors,
+    std::vector<double>& snmErrors
+) {
+        for (const auto& coeff : coefficients) {
+                if (coeff.degree >= minDegree && coeff.degree <= maxDegree && coeff.order <= maxDegree) {
+                        cnmErrors.push_back(coeff.CnmErr);
+                        if (coeff.SnmErr != 0.0) {
+                                snmErrors.push_back(coeff.SnmErr);
+                        }
+                }
+        }
+}
+
 // Function to compute the cross product of position and velocity and store it in a map
 std::map<double, Eigen::VectorXd> computeCrossProduct(const std::map<double, Eigen::VectorXd>& stateHistory) {
         std::map<double, Eigen::VectorXd> crossProductMap;
@@ -176,7 +237,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
     double oneWayDopplerNoise = 0.0001;
     double twoWayDopplerNoise = 0.0001;
-    double rangeNoise = 0.0001;
+    double rangeNoise = 1;
     // Select ephemeris time range (based on available data in loaded SPICE ephemeris)
     //Time initialEphemerisTime = Time( 185976000 - 1.0 * 86400.0 ); // 23 November 2005, 0h
     //Time finalEphemerisTime = Time( 186580800 + 1.0 * 86400.0 ); // 30 November 2005, 0h
@@ -638,10 +699,12 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
         //periodic gravity field
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
-        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
+        std::cout<<" cosine block indices per period size"<<cosineBlockIndicesPerPeriod[0].size()<<std::endl;
+
         std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPeriod;
         parameterNames.push_back( std::make_shared< PeriodicGravityFieldVariationEstimatableParameterSettings >(
                 centralBody, cosineBlockIndicesPerPeriod, sineBlockIndicesPerPeriod ) );
@@ -699,12 +762,12 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     }
     // Define (arbitrary) link ends for each observable
     std::map< ObservableType, std::vector< LinkEnds > > linkEndsPerObservable;
-    linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 0 ] );
-    linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
-    linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
+    // linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 0 ] );
+    // linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
+    // linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
 
-    // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
-    // linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
+    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
+    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
     std::cout<<"link ends created"<<std::endl;
 
     std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
@@ -768,33 +831,33 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
 // Create the noise functions that return Eigen::VectorXd
 
-    noiseFunctions[ one_way_range ] =
-            [=](const double input) -> Eigen::VectorXd {
-                // Call the original function that returns a double
-                double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
-                        createBoostContinuousRandomVariableGeneratorFunction(
-                                tudat::statistics::normal_boost_distribution, { 0.0, rangeNoise }, 0.0
-                        ), input
-                );
-                // Convert the double to Eigen::VectorXd
-                Eigen::VectorXd result(1);
-                result(0) = noiseValue;
-                return result;
-            };
+    // noiseFunctions[ one_way_range ] =
+    //         [=](const double input) -> Eigen::VectorXd {
+    //             // Call the original function that returns a double
+    //             double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+    //                     createBoostContinuousRandomVariableGeneratorFunction(
+    //                             tudat::statistics::normal_boost_distribution, { 0.0, rangeNoise }, 0.0
+    //                     ), input
+    //             );
+    //             // Convert the double to Eigen::VectorXd
+    //             Eigen::VectorXd result(1);
+    //             result(0) = noiseValue;
+    //             return result;
+    //         };
 
-        // noiseFunctions[ two_way_doppler ] =
-        //    [=](const double input) -> Eigen::VectorXd {
-        //            // Call the original function that returns a double
-        //            double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
-        //                    createBoostContinuousRandomVariableGeneratorFunction(
-        //                            tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
-        //                    ), input
-        //            );
-        //            // Convert the double to Eigen::VectorXd
-        //            Eigen::VectorXd result(1);
-        //            result(0) = noiseValue;
-        //            return result;
-        // };
+        noiseFunctions[ two_way_doppler ] =
+           [=](const double input) -> Eigen::VectorXd {
+                   // Call the original function that returns a double
+                   double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+                           createBoostContinuousRandomVariableGeneratorFunction(
+                                   tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
+                           ), input
+                   );
+                   // Convert the double to Eigen::VectorXd
+                   Eigen::VectorXd result(1);
+                   result(0) = noiseValue;
+                   return result;
+        };
 
 
     std::cout<<"noise functions created"<<std::endl;
@@ -834,12 +897,14 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 initialParameterEstimate[ 4 + 6 * i ] += perturbVel;
                 initialParameterEstimate[ 5 + 6 * i ] += perturbVel;
         }
+
         std::cout<<"initial parameters perturbed"<<std::endl;
         parametersToEstimate->resetParameterValues( initialParameterEstimate );
         printEstimatableParameterEntries( parametersToEstimate );
         // set a priori to the drag coefficients
     //const int DIAGONALS = numberOfIntegrationArcs*6;
     //double aprioriuncertainty =1.0/(0.1*0.1);
+
 
     // Create a 2D vector (matrix) filled with zeros
     //Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
@@ -869,8 +934,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     );
     std::map< observation_models::ObservableType, double > weightPerObservable;
     //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
-    weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
-    // weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+    // weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
+    weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
 
     estimationInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
     std::cout<<"estimation input created"<<std::endl;
@@ -900,18 +965,67 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 }
         }
         outputFile.close();
+
         // Create a 2D vector (matrix) filled with zeros
         const int DIAGONALS = numberOfIntegrationArcs*6;
         Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-         // Fill the matrix with the values of the diagonal
-        for (int i = DIAGONALS; i < numberOfParameters; ++i) {
-            matrix(i,i) = aprioriuncertainty;
+
+        const std::string filenameGrav = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/jgmro_120d_sha.tab.txt"; // Replace with your file path
+        std::vector<GravityCoefficient> coefficients;
+        // Filter and extract errors up to degree and order 8
+        int maxDegree = 8;
+        int minDegree = 2;
+        std::vector<double> cnmErrors;
+        std::vector<double> snmErrors;
+
+        try {
+                // Load the gravity field file
+                loadGravityFieldFile(filenameGrav, coefficients);
+
+                extractErrorsWithinRange(coefficients, minDegree, maxDegree, cnmErrors, snmErrors);
+                std::cout<<"size of Cnm errors: " << cnmErrors.size() << std::endl;
+                std::cout<<"size of Snm errors: " << snmErrors.size() << std::endl;
+                std::cout<<DIAGONALS<<std::endl;
+
+                // Print the extracted errors
+                // Fill the matrix with the values of the diagonal
+                for (int i = 0; i < cnmErrors.size(); ++i) {
+                        matrix(i+DIAGONALS,i+DIAGONALS) = cnmErrors[i];
+                }
+                std::cout<<"matrix filled with Cnm errors size: "<< cnmErrors.size()+DIAGONALS <<std::endl;
+                for (int i = 0; i < snmErrors.size(); ++i) {
+                        matrix(i+DIAGONALS+cnmErrors.size(),i+DIAGONALS+cnmErrors.size()) = snmErrors[i];
+                }
+        } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                exit(1);
         }
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+3, DIAGONALS+cnmErrors.size()+snmErrors.size()+3) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+4, DIAGONALS+cnmErrors.size()+snmErrors.size()+4) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+5, DIAGONALS+cnmErrors.size()+snmErrors.size()+5) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+6, DIAGONALS+cnmErrors.size()+snmErrors.size()+6) = 1.0/(0.010E-09*0.010E-09);
+
+                // Fill the matrix with the values of the diagonal
+        // Fill the uncertainty of the static cosine coefficients
+        // matrix(numberOfIntegrationArcs*6,numberOfIntegrationArcs*6) = 1.0/(0.1260320626072000E-09*0.1260320626072000E-09);
+        // matrix(numberOfIntegrationArcs*6+1,numberOfIntegrationArcs*6+1) = 1.0/( 0.5456693544801000E-10* 0.5456693544801000E-10);
+        // matrix(numberOfIntegrationArcs*6+2,numberOfIntegrationArcs*6+2) = 1.0/ (0.5053988823546000E-10* 0.5053988823546000E-10);
+        // matrix(numberOfIntegrationArcs*6+3,numberOfIntegrationArcs*6+3) = 1.0/(0.9343820058712000E-10*0.9343820058712000E-10);
+        // matrix(numberOfIntegrationArcs*6+4,numberOfIntegrationArcs*6+4) = 1.0/(0.5512844614135000E-10*0.5512844614135000E-10);
+        // matrix(numberOfIntegrationArcs*6+5,numberOfIntegrationArcs*6+5) = 1.0/(0.4736610215831000E-10*0.4736610215831000E-10);
+        // matrix(numberOfIntegrationArcs*6+6,numberOfIntegrationArcs*6+6) = 1.0/(0.4361838264330000E-10*0.4361838264330000E-10);
+        // matrix(numberOfIntegrationArcs*6+7,numberOfIntegrationArcs*6+7) = 1.0/(0.1010005343691000E-09*0.1010005343691000E-09);
+        // matrix(numberOfIntegrationArcs*6+8,numberOfIntegrationArcs*6+8) = 1.0/(0.6765599578359000E-10*0.6765599578359000E-10);
+
+        //matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.1260320626072000E-09*0.1260320626072000E-09);
         // print matrix
         std::cout<<matrix<<std::endl;
     std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
             std::make_shared< CovarianceAnalysisInput< double, double > >(
-                    observationsAndTimes );
+                    observationsAndTimes,matrix );
     std::cout<<"covariance input created"<<std::endl;
 
     std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
