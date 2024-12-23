@@ -155,8 +155,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9_ipng_mgs95j.bsp" );
 
-    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
-    std::string fileTag = "StaticPeriodic234PolycovAn_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
+    std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                           + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
 
     // set input options
@@ -1050,14 +1050,14 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 int main() {
         int iterationNumber = 5;
         std::vector<int> arcLengths= {5};
-        std::vector<int> number_of_arcs= {72};
+        std::vector<int> number_of_arcs= {137};
         std::vector<double> hoursperday = {10.0};
         std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
         std::vector<double> initialTimes = { 0.0*86400.0};
         //std::vector<int> startTime = {-240, -180, -60, 0, 60, 180, 240};
         std::vector<int> startTime = {0};
-        int totalDuration = 360;
+        int totalDuration = 685;
         std::vector<double> perturbPos = {100.0};
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
@@ -1066,7 +1066,7 @@ int main() {
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {
                         for (int initialTime = 0; initialTime<initialTimes.size(); initialTime++) {
-                                double finalTime = initialTimes[initialTime] + 86400.0*360.0;
+                                double finalTime = initialTimes[initialTime] + 86400.0*685.0;
                                 for (int intperturb = 0; intperturb<perturbPos.size(); intperturb++) {
                                         arcLengthRuns( hoursperday[hours],  initialTimes[initialTime],  finalTime, arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  totalDuration,  startTime[initialTime],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);;
 
