@@ -1,4 +1,5 @@
 set(CMAKE_BUILD_TYPE Debug)
+
 TUDAT_ADD_EXECUTABLE(application_test_mars_dtm
         "TestMarsDtm.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
@@ -75,6 +76,10 @@ TUDAT_ADD_EXECUTABLE(debug-posobs-multiarcLX
         "debug-posobs-multiarcLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(debug-posobs-propagation-multiarcLX
+        "debug-posobs-propagation-multiarcLX.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
 TUDAT_ADD_EXECUTABLE(propagation_testsLX
         "propagation_testsLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
@@ -123,3 +128,31 @@ TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_LX
         "covAnalysis_spiceProp_LX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_LX
+        "covAnalysis_spiceprop_apriori_LX.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_drag_LX
+        "covAnalysis_spiceProp_apriori_drag_LX.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_drag_10_LX
+        "covAnalysis_spiceProp_apriori_drag_10_LX.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_drag_concObs_LX
+        "covAnalysis_spiceProp_apriori_drag_concObs_LX.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim
+        "covAnalysis_singleArcEstim.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_testinv
+        "covAnalysis_singleArcEstim_testinv.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+find_package(OpenMP REQUIRED)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(covAnalysis_singleArcEstim_testinv PRIVATE OpenMP::OpenMP_CXX)
+endif()

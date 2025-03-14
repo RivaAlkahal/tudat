@@ -98,7 +98,7 @@ int main( ) {
     using namespace tudat::orbital_element_conversions;
 
     spice_interface::loadStandardSpiceKernels();
-    /*
+
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6.bsp" );
@@ -127,42 +127,10 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext7_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext8_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9_ipng_mgs95j.bsp" );
-*/
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
 
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
-
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9.bsp" );
-
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9_ipng_mgs95j.bsp" );
-
-
-//    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
-    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/propagateDynamics/";
-    std::string fileTag = "propagate10trend-RK78-1ss-60days";
-   bool startEstimate = false;
-========
     std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
     std::string fileTag = "propagateAll10trend-RK78-30ss";
     bool startEstimate = false;
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
     // set input options
     double epehemeridesTimeStep = 60.0;
     bool useInterpolatedEphemerides = true;
@@ -430,10 +398,6 @@ int main( ) {
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
 
 
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
-========
-
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
     //scM/0.01
 /*
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
@@ -644,16 +608,9 @@ int main( ) {
     // Define integrator settings
     //std::shared_ptr< IntegratorSettings< > > integratorSettings =
     //        std::make_shared< IntegratorSettings< > >
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
-    //                ( rungeKutta4, integrationStartTime + 600, 10.0 );
-    std::shared_ptr<IntegratorSettings<> >integratorSettings =
-            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 1, CoefficientSets::rungeKutta87DormandPrince );
-
-========
     //               ( rungeKutta4, integrationStartTime + 600, 60.0 );
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
 
     std::cout<<"Integration settings created"<<std::endl;
 

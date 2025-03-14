@@ -77,6 +77,12 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/covAnalysis_spiceProp_LX.cpp
                     ../tests_riva/covAnalysis_spiceProp_mac.cpp
                     ../tests_riva/frameTransformation_covAn.cpp
+                    ../tests_riva/covAnalysis_spiceprop_apriori_LX.cpp
+                    ../tests_riva/covAnalysis_spiceProp_apriori_drag_LX.cpp
+                    ../tests_riva/covAnalysis_spiceProp_apriori_drag_10_LX.cpp
+                    ../tests_riva/debug-posobs-propagation-multiarcLX.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_testinv.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

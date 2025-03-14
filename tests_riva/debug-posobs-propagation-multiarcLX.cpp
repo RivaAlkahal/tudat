@@ -1,3 +1,6 @@
+//
+// Created by ralkahal on 5-2-25.
+//
 // last run on 2024-10-17
 // Created by Riva Alkahal on 09/10/2024.
 //
@@ -93,8 +96,25 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "observspice-RK78-60s-multiarc-drag-apr10-per-arc-emprconst-perarc+grav95";
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map3_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
+
+    //std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
+    std::string saveDirectory = "/home/ralkahal/new-tudat-tests/";
+    std::string fileTag = "observUPDATEDspice-newmass+matrix-RK78-60s-multiarc-drag-aprsqrt10-per-arc-nosrp-emprsincosperrev+const-constrained";
+
+
+    std::ofstream outFile(saveDirectory + "output_" + fileTag + ".txt");
+    if (!outFile) {
+        std::cerr << "Error: file could not be opened" << std::endl;
+        return 1;
+    }
+    std::streambuf* originalCoutBuffer = std::cout.rdbuf();
+    std::cout.rdbuf(outFile.rdbuf());
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -104,6 +124,7 @@ int main( ) {
     double arcDuration = 3.0 * 86400.0;//2.0E4;
     std::string dragEst = "per-rev";//"per-rev";
     std::string empEst = "per-arc";
+
     double ndays = 3.0;
     double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
@@ -114,7 +135,7 @@ int main( ) {
     double oneWayDopplerNoise = 0.0001;
     double twoWayDopplerNoise = 0.0001;
     double rangeNoise = 0.0001;
-    Time initialEphemerisTime = Time(0.0);
+    Time initialEphemerisTime = Time(0.0);//Time(0.0);
     Time finalEphemerisTime = Time(86400.0 * 60.0);
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout << "Total duration: " << totalDuration << std::endl;
@@ -409,8 +430,8 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-   // std::shared_ptr< IntegratorSettings< > > integratorSettings =
-    //        std::make_shared< IntegratorSettings< > >
+    //std::shared_ptr< IntegratorSettings< > > integratorSettings =
+     //       std::make_shared< IntegratorSettings< > >
     //                ( rungeKutta4, integrationStartTime + 600, 30.0 );
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
             std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
@@ -460,14 +481,13 @@ int main( ) {
     empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
-
     //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
     //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
     //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
     //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
-    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-    empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
 
     parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
             spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_drag ) );
@@ -498,8 +518,8 @@ int main( ) {
 
 
     // Retrieve state history
-    //std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
-    /*for ( Time t : observationTimes )
+    std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
+    for ( Time t : observationTimes )
     {
         propagatedStateHistory[ t.getSeconds< long double >() ] =
                 bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
@@ -508,10 +528,10 @@ int main( ) {
 
     writeDataMapToTextFile( propagatedStateHistory, "stateHistoryPropagatedPreFit_" + fileTag + ".txt", saveDirectory,
                             "", 18, 18 );
-    writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
-                            "", 18, 18 );
-*/
+    //writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
+    //                        "", 18, 18 );
 
+/*
 
     std::vector< std::shared_ptr< SingleObservationSet< long double, double > > > observationSetList;
     observationSetList.push_back(
@@ -524,6 +544,7 @@ int main( ) {
 
     // set a priori to the drag coefficients
     const int DIAGONALS = numberOfIntegrationArcs*6;
+    //double aprioriuncertainty =1.0/(10);
     double aprioriuncertainty =1.0/(10*10);
 
     Eigen::Matrix< long double, Eigen::Dynamic, 1 > initialParameterEstimate =
@@ -537,13 +558,13 @@ int main( ) {
     for (int i = DIAGONALS; i < DIAGONALS + numberOfIntegrationArcs ; ++i) {
         matrix(i,i) = aprioriuncertainty;
     }
-    aprioriuncertainty = 1.0/(10E-9*10E-9);
+    double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
     for (int i = DIAGONALS + numberOfIntegrationArcs; i < numberOfParameters - 3*(initial_times_list_drag.size()) ; ++i) {
-        matrix(i,i) = aprioriuncertainty;
+        matrix(i,i) = aprioriuncertainty1;
     }
-    aprioriuncertainty = 1.0/(10E-6*10E-6);
+    double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
     for (int i = numberOfParameters - 3*(initial_times_list_drag.size()); i < numberOfParameters; ++i) {
-        matrix(i,i) = aprioriuncertainty;
+        matrix(i,i) = aprioriuncertainty2;
     }
   // Define estimation input
     std::shared_ptr< EstimationInput< long double, double  > > estimationInput =
@@ -694,13 +715,13 @@ int main( ) {
     Eigen::Matrix< long double, Eigen::Dynamic, 1 > TrueError =  (estimationOutput->parameterEstimate_ - truthParameters).transpose() ;
     std::cout<< "normalized design matrix:"<< std::endl;
     // Define the output file
-/*
-    std::ofstream fe(saveDirectory + "matrix_" + fileTag +".csv");
+
+//    std::ofstream fe(saveDirectory + "matrix_" + fileTag +".csv");
     // Write the matrix to the file
-    fe << estimationOutput->normalizedDesignMatrix_;
+//    fe << estimationOutput->normalizedDesignMatrix_;
     // Close the file
-    fe.close();
-*/
+//    fe.close();
+
     //std::cout<< estimationOutput->normalizedDesignMatrix_ << std::endl;
     //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
     std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
@@ -734,7 +755,9 @@ int main( ) {
     // Close the file
     formalErrorFile.close();
     std::cout<<"True and formal errors saved"<<std::endl;
-
+    std::cout.rdbuf(originalCoutBuffer);
+    outFile.close();
+*/
     return 0;
 
 }

@@ -424,10 +424,6 @@ int main( ) {
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
 
 
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
-========
-
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
     //scM/0.01
 /*
     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
@@ -638,16 +634,12 @@ int main( ) {
     // Define integrator settings
     //std::shared_ptr< IntegratorSettings< > > integratorSettings =
     //        std::make_shared< IntegratorSettings< > >
-<<<<<<<< HEAD:tests_riva/propagation_testsLX.cpp
     //                ( rungeKutta4, integrationStartTime + 600, 10.0 );
-    std::shared_ptr<IntegratorSettings<> >integratorSettings =
-            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 1, CoefficientSets::rungeKutta87DormandPrince );
+//    std::shared_ptr<IntegratorSettings<> >integratorSettings =
+//            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 1, CoefficientSets::rungeKutta87DormandPrince );
 
-========
-    //               ( rungeKutta4, integrationStartTime + 600, 60.0 );
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/propagation_tests_mac.cpp
 
     std::cout<<"Integration settings created"<<std::endl;
 

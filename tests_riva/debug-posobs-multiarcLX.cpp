@@ -93,11 +93,18 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
+    /*spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map3_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
+    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
+*/
     //std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
     std::string saveDirectory = "/home/ralkahal/new-tudat-tests/";
-    std::string fileTag = "observspice-newmass+matrix-RK78-60s-multiarc-drag-aprsqrt10-per-arc-nosrp-emprsincosperrev+const-constrained";
+    std::string fileTag = "observspice-differenttime-newmass+matrix-RK78-60s-multiarc-drag-aprsqrt1-per-arc-nosrp-emprsincosperrev+const-constrained";
 
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
+
     std::ofstream outFile(saveDirectory + "output_" + fileTag + ".txt");
     if (!outFile) {
         std::cerr << "Error: file could not be opened" << std::endl;
@@ -105,10 +112,6 @@ int main( ) {
     }
     std::streambuf* originalCoutBuffer = std::cout.rdbuf();
     std::cout.rdbuf(outFile.rdbuf());
-========
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
-    std::string fileTag = "observspice-RK78-60s-multiarc-drag-apr10-per-arc-emprconst-perarc+grav95";
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -117,10 +120,8 @@ int main( ) {
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 3.0 * 86400.0;//2.0E4;
     std::string dragEst = "per-rev";//"per-rev";
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
-========
     std::string empEst = "per-arc";
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
+
     double ndays = 3.0;
     double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
@@ -131,8 +132,8 @@ int main( ) {
     double oneWayDopplerNoise = 0.0001;
     double twoWayDopplerNoise = 0.0001;
     double rangeNoise = 0.0001;
-    Time initialEphemerisTime = Time(0.0);
-    Time finalEphemerisTime = Time(86400.0 * 60.0);
+    Time initialEphemerisTime = Time(86400.0 * 60.0);//Time(0.0);
+    Time finalEphemerisTime = Time(86400.0 * 120.0);
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout << "Total duration: " << totalDuration << std::endl;
 
@@ -348,8 +349,7 @@ int main( ) {
     {
         step_size_drag = ndays * 24 * 3600;
     }
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
-========
+
     if (empEst == "per-rev") {
         step_size_emp = hoursperdaydrag * 3600;
     }
@@ -357,7 +357,7 @@ int main( ) {
     {
         step_size_emp = ndays * 24 * 3600;
     }
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
+
     std::cout<<"step size: "<<step_size_drag<<std::endl;
     //double step_size = ndays * 24 * 3600;
     std::vector< double > initial_times_list_drag;
@@ -427,13 +427,8 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
     //std::shared_ptr< IntegratorSettings< > > integratorSettings =
      //       std::make_shared< IntegratorSettings< > >
-========
-   // std::shared_ptr< IntegratorSettings< > > integratorSettings =
-    //        std::make_shared< IntegratorSettings< > >
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
     //                ( rungeKutta4, integrationStartTime + 600, 30.0 );
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
             std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
@@ -474,7 +469,7 @@ int main( ) {
     //parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
 
     std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
+
     empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
     empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
     empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
@@ -483,15 +478,13 @@ int main( ) {
     empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
-========
     //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
     //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
     //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
     //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
-    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-    empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
 
     parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
             spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_drag ) );
@@ -548,12 +541,9 @@ int main( ) {
 
     // set a priori to the drag coefficients
     const int DIAGONALS = numberOfIntegrationArcs*6;
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
-    double aprioriuncertainty =1.0/(10);
-========
-    double aprioriuncertainty =1.0/(10*10);
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
-
+    //double aprioriuncertainty =1.0/(10);
+    //double aprioriuncertainty =1.0/(10*10);
+    double aprioriuncertainty = 1.0;
     Eigen::Matrix< long double, Eigen::Dynamic, 1 > initialParameterEstimate =
             parametersToEstimate->template getFullParameterValues< long double >( );
     int numberOfParameters = initialParameterEstimate.rows( );
@@ -562,20 +552,16 @@ int main( ) {
     // Create a 2D vector (matrix) filled with zeros
     Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
     // Fill the matrix with the values of the diagonal
-<<<<<<<< HEAD:tests_riva/debug-posobs-multiarcLX.cpp
     for (int i = DIAGONALS; i < DIAGONALS + numberOfIntegrationArcs ; ++i) {
         matrix(i,i) = aprioriuncertainty;
     }
-    aprioriuncertainty = 1.0/(10E-9*10E-9);
+    double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
     for (int i = DIAGONALS + numberOfIntegrationArcs; i < numberOfParameters - 3*(initial_times_list_drag.size()) ; ++i) {
-        matrix(i,i) = aprioriuncertainty;
+        matrix(i,i) = aprioriuncertainty1;
     }
-    aprioriuncertainty = 1.0/(10E-6*10E-6);
+    double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
     for (int i = numberOfParameters - 3*(initial_times_list_drag.size()); i < numberOfParameters; ++i) {
-========
-    for (int i = DIAGONALS; i < 140 ; ++i) {
->>>>>>>> forkedrep/tests/riva_tests:tests_riva/debug-posobs-multiarc_mac.cpp
-        matrix(i,i) = aprioriuncertainty;
+        matrix(i,i) = aprioriuncertainty2;
     }
   // Define estimation input
     std::shared_ptr< EstimationInput< long double, double  > > estimationInput =
