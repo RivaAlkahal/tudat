@@ -98,7 +98,10 @@ TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_mac
 TUDAT_ADD_EXECUTABLE(frameTransformation_covAn.cpp
         "frameTransformation_covAn.cpp"
         ${Tudat_ESTIMATION_LIBRARIES})
-
+TUDAT_ADD_EXECUTABLE(multiThreadingTest
+        "multiThreadingTest.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES})
+target_link_libraries(multiThreadingTest PRIVATE pthread)
 TUDAT_ADD_EXECUTABLE(covAnalysis_spiceprop_apriori_mac.cpp
         "covAnalysis_spiceprop_apriori_mac"
         ${Tudat_ESTIMATION_LIBRARIES})

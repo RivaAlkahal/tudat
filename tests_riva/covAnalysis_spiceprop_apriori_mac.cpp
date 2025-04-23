@@ -216,7 +216,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
 
 
-    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/onewayrangecapped/";
+    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/covAn/gravityField/twowaydoppler_apriori/";
     //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     std::string fileTag = "234polyperiodicandStatic_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                           + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
@@ -888,15 +888,15 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         int numberOfParameters = initialParameterEstimate.rows( );
         std::cout<<"number of parameters: "<<numberOfParameters<<std::endl;
         // Perturb initial states
-        for( unsigned int i = 0; i < integrationArcStartTimes.size( ); i++ )
-        {
-                initialParameterEstimate[ 0 + 6 * i ] += perturbPos;
-                initialParameterEstimate[ 1 + 6 * i ] += perturbPos;
-                initialParameterEstimate[ 2 + 6 * i ] += perturbPos;
-                initialParameterEstimate[ 3 + 6 * i ] += perturbVel;
-                initialParameterEstimate[ 4 + 6 * i ] += perturbVel;
-                initialParameterEstimate[ 5 + 6 * i ] += perturbVel;
-        }
+        // for( unsigned int i = 0; i < integrationArcStartTimes.size( ); i++ )
+        // {
+        //         initialParameterEstimate[ 0 + 6 * i ] += perturbPos;
+        //         initialParameterEstimate[ 1 + 6 * i ] += perturbPos;
+        //         initialParameterEstimate[ 2 + 6 * i ] += perturbPos;
+        //         initialParameterEstimate[ 3 + 6 * i ] += perturbVel;
+        //         initialParameterEstimate[ 4 + 6 * i ] += perturbVel;
+        //         initialParameterEstimate[ 5 + 6 * i ] += perturbVel;
+        // }
 
         std::cout<<"initial parameters perturbed"<<std::endl;
         parametersToEstimate->resetParameterValues( initialParameterEstimate );
@@ -915,30 +915,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     //print matrix
     //std::cout<<matrix<<std::endl;
 
-    // Define estimation input
-    std::shared_ptr< EstimationInput< double, double  > > estimationInput =
-            std::make_shared< EstimationInput< double, double > >(
-                    observationsAndTimes,
-                    Eigen::MatrixXd::Zero(0,0),
-                    std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
-    // Call the function with reintegrateVariationalEquations set to true
-    estimationInput->defineEstimationSettings(
-            true,  // reintegrateEquationsOnFirstIteration
-            true,  // reintegrateVariationalEquations
-            true,  // saveDesignMatrix
-            true,  // printOutput
-            true,  // saveResidualsAndParametersFromEachIteration
-            true, // saveStateHistoryForEachIteration
-            1.0E8, // limitConditionNumberForWarning
-            true   // conditionNumberWarningEachIteration
-    );
-    std::map< observation_models::ObservableType, double > weightPerObservable;
-    //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
-    // weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
-    weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
 
-    estimationInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
-    std::cout<<"estimation input created"<<std::endl;
         std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
 
         std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
@@ -948,9 +925,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
         for (const auto &observableType: sortedObservationSets) {
                 std::cout << "Observable type: " << observableType.first << std::endl;
-                for (const auto &stationId: observableType.second) {
-                        std::cout << "Station ID: " << stationId.first << std::endl;
-                        for (const auto &obsSetPtr: stationId.second) {
+                for (const auto &linkends_: observableType.second) {
+                        std::cout << "Station ID: " << linkends_.first << std::endl;
+                        for (const auto &obsSetPtr: linkends_.second) {
                                 auto time = obsSetPtr->getObservationTimes();
                                 auto observation = obsSetPtr->getObservationsVector();
 
@@ -959,7 +936,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                                 // Save times and observations to file
                                 for (size_t i = 0; i < time.size(); ++i)
                                 {
-                                        outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
+                                        outputFile << linkends_.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
                                 }
                         }
                 }
@@ -1000,6 +977,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 std::cerr << "Error: " << e.what() << std::endl;
                 exit(1);
         }
+        // periodic coeffs
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
@@ -1007,26 +985,27 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+4, DIAGONALS+cnmErrors.size()+snmErrors.size()+4) = 1.0/(0.101E-10*0.101E-10);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+5, DIAGONALS+cnmErrors.size()+snmErrors.size()+5) = 1.0/(0.101E-10*0.101E-10);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+6, DIAGONALS+cnmErrors.size()+snmErrors.size()+6) = 1.0/(0.010E-09*0.010E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+7, DIAGONALS+cnmErrors.size()+snmErrors.size()+7) = 1.0/(0.010E-09*0.010E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+8, DIAGONALS+cnmErrors.size()+snmErrors.size()+8) = 1.0/(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+9, DIAGONALS+cnmErrors.size()+snmErrors.size()+9) = 1.0/(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+10, DIAGONALS+cnmErrors.size()+snmErrors.size()+10) = 1.0/(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+11, DIAGONALS+cnmErrors.size()+snmErrors.size()+11) = 1.0/(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+12, DIAGONALS+cnmErrors.size()+snmErrors.size()+12) = 1.0/(0.1E-19*0.1E-19);
 
-                // Fill the matrix with the values of the diagonal
-        // Fill the uncertainty of the static cosine coefficients
-        // matrix(numberOfIntegrationArcs*6,numberOfIntegrationArcs*6) = 1.0/(0.1260320626072000E-09*0.1260320626072000E-09);
-        // matrix(numberOfIntegrationArcs*6+1,numberOfIntegrationArcs*6+1) = 1.0/( 0.5456693544801000E-10* 0.5456693544801000E-10);
-        // matrix(numberOfIntegrationArcs*6+2,numberOfIntegrationArcs*6+2) = 1.0/ (0.5053988823546000E-10* 0.5053988823546000E-10);
-        // matrix(numberOfIntegrationArcs*6+3,numberOfIntegrationArcs*6+3) = 1.0/(0.9343820058712000E-10*0.9343820058712000E-10);
-        // matrix(numberOfIntegrationArcs*6+4,numberOfIntegrationArcs*6+4) = 1.0/(0.5512844614135000E-10*0.5512844614135000E-10);
-        // matrix(numberOfIntegrationArcs*6+5,numberOfIntegrationArcs*6+5) = 1.0/(0.4736610215831000E-10*0.4736610215831000E-10);
-        // matrix(numberOfIntegrationArcs*6+6,numberOfIntegrationArcs*6+6) = 1.0/(0.4361838264330000E-10*0.4361838264330000E-10);
-        // matrix(numberOfIntegrationArcs*6+7,numberOfIntegrationArcs*6+7) = 1.0/(0.1010005343691000E-09*0.1010005343691000E-09);
-        // matrix(numberOfIntegrationArcs*6+8,numberOfIntegrationArcs*6+8) = 1.0/(0.6765599578359000E-10*0.6765599578359000E-10);
-
-        //matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.1260320626072000E-09*0.1260320626072000E-09);
         // print matrix
         std::cout<<matrix<<std::endl;
+
     std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
             std::make_shared< CovarianceAnalysisInput< double, double > >(
-                    observationsAndTimes,matrix );
+                    observationsAndTimes,matrix);
     std::cout<<"covariance input created"<<std::endl;
+        std::map< observation_models::ObservableType, double > weightPerObservable;
+        //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
+        // weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
+        weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+
+        covarianceInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
+        std::cout<<"estimation input created"<<std::endl;
 
     std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
             covarianceInput );
@@ -1037,6 +1016,36 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         fe << covarianceOutput->getUnnormalizedDesignMatrix( );
         // Close the file
         fe.close();
+
+        std::ofstream fe2(saveDirectory + "normalizedDesignMatrix" + fileTag + ".txt");
+        // Write the matrix to the file
+        fe2 << covarianceOutput->getNormalizedDesignMatrix( );
+        // Close the file
+        fe2.close();
+
+        std::ofstream fe3(saveDirectory + "weightsMatrixDiagonal" + fileTag + ".txt");
+        // Write the matrix to the file
+        fe3 << covarianceOutput->weightsMatrixDiagonal_;
+        // Close the file
+        fe3.close();
+
+        std::ofstream fein(saveDirectory + "inverseNormalizedCovarianceMatrix" + fileTag + ".txt");
+        // Write the matrix to the file
+        fein << covarianceOutput->inverseNormalizedCovarianceMatrix_;
+        // Close the file
+        fein.close();
+
+        std::ofstream fe4(saveDirectory + "normalizedCovarianceMatrix" + fileTag + ".txt");
+        // Write the matrix to the file
+        fe4 << covarianceOutput->normalizedCovarianceMatrix_;
+        // Close the file
+        fe4.close();
+
+        std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal" + fileTag + ".txt");
+        // Write the matrix to the file
+        fe5 << covarianceOutput->designMatrixTransformationDiagonal_;
+        // Close the file
+        fe5.close();
 
         Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
         std::ofstream file10 (saveDirectory + "correlationMatrix_" + fileTag + ".txt");
@@ -1054,8 +1063,25 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         file12 << std::setprecision(21) << FormalError ;
         file12.close( );
 
+
     // Perform estimation
         if (performEst) {
+                std::shared_ptr< EstimationInput< double, double  > > estimationInput =
+                    std::make_shared< EstimationInput< double, double > >(
+                            observationsAndTimes,
+                            Eigen::MatrixXd::Zero(0,0),
+                            std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
+                // Call the function with reintegrateVariationalEquations set to true
+                estimationInput->defineEstimationSettings(
+                        true,  // reintegrateEquationsOnFirstIteration
+                        true,  // reintegrateVariationalEquations
+                        true,  // saveDesignMatrix
+                        true,  // printOutput
+                        true,  // saveResidualsAndParametersFromEachIteration
+                        true, // saveStateHistoryForEachIteration
+                        1.0E8, // limitConditionNumberForWarning
+                        true   // conditionNumberWarningEachIteration
+                );
                 std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
                         estimationInput );
                 std::cout<<"estimation performed"<<std::endl;
