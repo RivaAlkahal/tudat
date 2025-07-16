@@ -79,7 +79,7 @@ from matplotlib import pyplot as plt
 
 spice.load_standard_kernels()
 
-
+# test test
 """
 ## Auxiliary functions
 In order to keep the main code neat and clean, several auxiliary functions will be used that need to be defined before the main code. Feel free to skip them now and come back to them when they are used in the script.
