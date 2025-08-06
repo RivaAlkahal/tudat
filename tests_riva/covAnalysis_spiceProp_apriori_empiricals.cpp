@@ -262,10 +262,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext25_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext26_ipng_mgs95j.bsp" );
 
-    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler_apriori/resultsWithObservations/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
+    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler_apriori/covAnResultsWithEmpiricals/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     //std::string fileTag = "DEBUGnoapr234001poly_aprperiodicand18StaticandDragperarc_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
     //                      + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
-    std::string fileTag = "inverseApr_standard_all_drag_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+    std::string fileTag = "inverseApr_standard_all_drag_empiricals" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
         + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
 
     // set input options
@@ -274,7 +274,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     double observationsSamplingTime = 60.0;
     double buffer = 30.0 * epehemeridesTimeStep;
     double arcDuration = arcLength*86400.0;//2.0E4;
-    std::string dragEst = "per-halfday";//"per-rev";
+    std::string dragEst = "per-rev";
     double ndays = 1.0;
     double hoursperdaydrag = 2.0;
     //double hoursperday = 10.0;
@@ -432,6 +432,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
 */
     //scM/0.01
+/*
         cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
         cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
         cosineAmplitudes[1](0,2) += -2.29416809459079e-12/(365*24*3600);
@@ -445,9 +446,34 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         cosineAmplitudes[1](2,3) += 1.325699794642290e-12/(365*24*3600);
         cosineAmplitudes[1](2,4) += 1.175466344751454e-12/(365*24*3600);
 
-
     std::map<int, Eigen::MatrixXd> sineAmplitudes;
-        std::cout<<"creating settings for poly grav"<<std::endl;
+*/
+     cosineAmplitudes[ 1 ]( 0, 0 ) += -7.00583559071078e-13/(365*24*3600);
+     cosineAmplitudes[1](0,1) +=-5.44909982178362e-14/(365*24*3600);
+     cosineAmplitudes[1](0,2) += -8.31134553095663e-13/(365*24*3600);
+     cosineAmplitudes[1](1,0) += 1.15640729781333e-13/(365*24*3600);
+     cosineAmplitudes[1](1,1) += -2.61531330180095e-13/(365*24*3600);
+     cosineAmplitudes[1](1,2) += 1.02212332919433e-13/(365*24*3600);
+     cosineAmplitudes[1](1,3) += -8.00674595992919e-13/(365*24*3600);
+     cosineAmplitudes[1](2,0) += 4.32941757959663e-13/(365*24*3600);
+     cosineAmplitudes[1](2,1) += 5.98812345051549e-14/(365*24*3600);
+     cosineAmplitudes[1](2,2) += 4.4199871466477e-13/(365*24*3600);
+     cosineAmplitudes[1](2,3) += 1.25159028954031e-13/(365*24*3600);
+     cosineAmplitudes[1](2,4) += -5.3726758654485e-14/(365*24*3600);
+
+     std::map<int, Eigen::MatrixXd> sineAmplitudes;
+     sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
+     sineAmplitudes[1](0,1) +=1.25916272835878e-13/(365*24*3600);
+     sineAmplitudes[1](0,2) += -8.84999663538266e-13/(365*24*3600);
+     sineAmplitudes[1](1,1) += 6.0445217093141e-13/(365*24*3600);
+     sineAmplitudes[1](1,2) += 1.08851817438134e-13/(365*24*3600);
+     sineAmplitudes[1](1,3) += 2.88244592826493e-13/(365*24*3600);
+     sineAmplitudes[1](2,1) += -1.38365049897319e-13/(365*24*3600);
+     sineAmplitudes[1](2,2) += 4.70640224945299e-13/(365*24*3600);
+     sineAmplitudes[1](2,3) += -4.50562269498905e-14/(365*24*3600);
+     sineAmplitudes[1](2,4) += 8.5339608889136e-13/(365*24*3600);
+
+    std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
             std::make_shared< PolynomialGravityFieldVariationsSettings >(
                     cosineAmplitudes, sineAmplitudes, 0.0, 2, 0 );
@@ -494,6 +520,11 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     accelerationsOfVehicle["Phobos"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Deimos"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Jupiter"].push_back(pointMassGravityAcceleration());
+
+    accelerationsOfVehicle[ "Mars" ].push_back( std::make_shared< EmpiricalAccelerationSettings >(
+                                                             Eigen::Vector3d::Zero( ),
+                                                             Eigen::Vector3d::Zero( ),
+                                                             Eigen::Vector3d::Zero( )) );
 
     accelerationMap[spacecraftName] = accelerationsOfVehicle;
 
@@ -585,7 +616,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     //double step_size = ndays * 24 * 3600;
     std::vector< double > initial_times_list_drag;
     // Generate the times for drag coeffs
-    for (double time = integrationStartTime + 10000 ; time < integrationEndTime + 10000 ; time += step_size) {
+    for (double time = integrationStartTime + 10000 ; time < integrationEndTime - 10000 ; time += step_size) {
         if (integrationEndTime-time < step_size) {
             break;
         }
@@ -763,61 +794,84 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
           getInitialMultiArcParameterSettings< double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
 
         parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName,integrationArcStartTimes));
-        //parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-        //                                                 2, 0, 4, 0, "Mars", spherical_harmonics_cosine_coefficient_block ) );
 
+
+	std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
+
+	empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+	empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
+	empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+	empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+	empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
+	empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+
+        parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
+            spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_drag ) );
+
+
+	parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                                         2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
         parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                 2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
-        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                      2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
+                                              2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
 
         std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
-        
         //periodic gravity field
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
 
 	cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 5, 0 ) );
 
 	cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 5, 0 ) );
 	std::cout<<" cosine block indices per period size"<<cosineBlockIndicesPerPeriod[0].size()<<std::endl;
-
         std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPeriod;
         parameterNames.push_back( std::make_shared< PeriodicGravityFieldVariationEstimatableParameterSettings >(
                 centralBody, cosineBlockIndicesPerPeriod, sineBlockIndicesPerPeriod ) );
 
         std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPower;
+
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 0 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 0 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 2 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 3 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
-       // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
-       // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
+
         std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
-        //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 2 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 3 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
         parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
-                "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
+                        "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
 
         std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
-                    createParametersToEstimate< double, double >( parameterNames, bodies );
+                    createParametersToEstimate< double, double >( parameterNames, bodies, multiArcPropagatorSettings );
 
         std::cout<<"parameters to estimate created"<<std::endl;
 
 
 
     // Create link ends
+
     // Create list of link ends where the ground station is the transmitter and the spacecraft is the receiver
     std::vector< LinkEnds > stationTransmitterLinkEnds;
     std::vector< LinkEnds > downlinkLinkEnds_;
@@ -975,33 +1029,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         Eigen::Matrix< double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
         int numberOfParameters = initialParameterEstimate.rows( );
         std::cout<<"number of parameters: "<<numberOfParameters<<std::endl;
-        // Perturb initial states
-        // for( unsigned int i = 0; i < integrationArcStartTimes.size( ); i++ )
-        // {
-        //         initialParameterEstimate[ 0 + 6 * i ] += perturbPos;
-        //         initialParameterEstimate[ 1 + 6 * i ] += perturbPos;
-        //         initialParameterEstimate[ 2 + 6 * i ] += perturbPos;
-        //         initialParameterEstimate[ 3 + 6 * i ] += perturbVel;
-        //         initialParameterEstimate[ 4 + 6 * i ] += perturbVel;
-        //         initialParameterEstimate[ 5 + 6 * i ] += perturbVel;
-        // }
-        //
-        // std::cout<<"initial parameters perturbed"<<std::endl;
-        //parametersToEstimate->resetParameterValues( initialParameterEstimate );
+
         printEstimatableParameterEntries( parametersToEstimate );
-        // set a priori to the drag coefficients
-    //const int DIAGONALS = numberOfIntegrationArcs*6;
-    //double aprioriuncertainty =1.0/(0.1*0.1);
 
-
-    // Create a 2D vector (matrix) filled with zeros
-    //Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-    // Fill the matrix with the values of the diagonal
-    //for (int i = DIAGONALS; i < numberOfParameters; ++i) {
-    //    matrix(i,i) = aprioriuncertainty;
-    //}
-    //print matrix
-    //std::cout<<matrix<<std::endl;
         // retrieve simulate observations
         std::ofstream outputfile1(saveDirectory + "concatenatedlinkedId-stationNames-Observations" + fileTag + ".txt");
         outputfile1 << std::setprecision(17);
@@ -1077,17 +1107,39 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         }
         outputFile.close();
 
+
+
+        // set a priori to the drag coefficients
+
+	int lengthOfTimeListEmp = initial_times_list_drag.size();
+
+	int numberOfLocalParameters = numberOfIntegrationArcs*6+numberOfIntegrationArcs+lengthOfTimeListEmp*6;
+        int numberOfGlobalParameters = numberOfParameters - numberOfLocalParameters;
+        std::cout<<"number of parameters: "<<numberOfParameters<<std::endl;
+        printEstimatableParameterEntries( parametersToEstimate );
+
         // Create a 2D vector (matrix) filled with zeros
+	
+	const int DIAGONALS = numberOfLocalParameters;
 
-        const int DIAGONALS = numberOfIntegrationArcs*6 + numberOfIntegrationArcs;
         Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-        //int remainingParametersForDrag = numberOfParameters - DIAGONALS - cnmErrors.size() - snmErrors.size() - 29;
+
+        double aprioriuncertainty =1.0/(10*10);
+
+	// Fill the matrix with the values of the diagonal
+	for (int i = numberOfIntegrationArcs*6; i < numberOfIntegrationArcs*6 + numberOfIntegrationArcs ; ++i) {
+    	    matrix(i,i) = aprioriuncertainty;
+	}
+	double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
+	for (int i = numberOfIntegrationArcs*6 + numberOfIntegrationArcs; i < numberOfLocalParameters - 3*lengthOfTimeListEmp; ++i) {
+    	    matrix(i,i) = aprioriuncertainty1;
+	}
+	double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
+	for (int i = numberOfLocalParameters - 3*lengthOfTimeListEmp; i < numberOfLocalParameters; ++i) {
+	    matrix(i,i) = aprioriuncertainty2;
+	}
 
 
-	double aprioriuncertainty =1.0/(10*10);
-        for (int i = numberOfIntegrationArcs*6; i < DIAGONALS; ++i) {
-                matrix(i,i) = aprioriuncertainty;
-        }
         const std::string filenameGrav = "/home/ralkahal/nnew-tudat-tests/jgmro_120d_sha.tab"; // Replace with your file path
         std::vector<GravityCoefficient> coefficients;
         // Filter and extract errors up to degree and order 8
@@ -1209,20 +1261,20 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         //fein <<  std::setprecision(32) <<covarianceOutput->getUnnormalizedInverseCovarianceMatrix( );
         //fein.close();
 
-        std::ofstream fean(saveDirectory + "inverseNormalizedCovarianceMatrix_" +  fileTag + ".txt");
-        fean <<  std::setprecision(32) <<covarianceOutput->getNormalizedInverseCovarianceMatrix( );
-        fean.close();
-        std::ofstream fe4(saveDirectory + "normalizedCovarianceMatrix" + fileTag + ".txt");
+        //std::ofstream fean(saveDirectory + "inverseNormalizedCovarianceMatrix_" +  fileTag + ".txt");
+        //fean <<  std::setprecision(32) <<covarianceOutput->getNormalizedInverseCovarianceMatrix( );
+        //fean.close();
+        //std::ofstream fe4(saveDirectory + "normalizedCovarianceMatrix" + fileTag + ".txt");
         // Write the matrix to the file
-        fe4 << covarianceOutput->normalizedCovarianceMatrix_;
+        //fe4 << covarianceOutput->normalizedCovarianceMatrix_;
         // Close the file
-        fe4.close();
+        //fe4.close();
 
-        std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal" + fileTag + ".txt");
+        //std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal" + fileTag + ".txt");
          //Write the matrix to the file
-        fe5 << covarianceOutput->designMatrixTransformationDiagonal_;
+        //fe5 << covarianceOutput->designMatrixTransformationDiagonal_;
          //Close the file
-        fe5.close();
+        //fe5.close();
 
         //Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
         //std::ofstream file10 (saveDirectory + "correlationMatrix_" + fileTag + ".txt");
@@ -1258,7 +1310,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
             true, // saveStateHistoryForEachIteration
             1.0E8, // limitConditionNumberForWarning
             true   // conditionNumberWarningEachIteration
-		);
+	);
                 std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
                         estimationInput );
                 std::cout<<"estimation performed"<<std::endl;
@@ -1426,7 +1478,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 int main() {
         int iterationNumber = 5;
         std::vector<int> arcLengths= {5};
-        std::vector<int> number_of_arcs= {210};//,72,137,210};
+        std::vector<int> number_of_arcs= {72};//,72,137,210};
         std::vector<double> hoursperday = {10.0};
         std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
@@ -1437,8 +1489,8 @@ int main() {
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
         std::vector<int> intperturbVel = {0001};
-        std::vector<int> totalDuration = {1050};//,360,685,1050};
-        std::vector<double> finalTimes= {86400.0*1050.0};//, 86400.0*360.0, 86400.0*685.0, 86400.0*1050.0};
+        std::vector<int> totalDuration = {360};//{1050};//,360,685,1050};
+        std::vector<double> finalTimes= {86400.0*360.0};//, 86400.0*360.0, 86400.0*685.0, 86400.0*1050.0};
         bool performEst = false;
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {

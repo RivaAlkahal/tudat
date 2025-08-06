@@ -92,6 +92,10 @@ TUDAT_ADD_EXECUTABLE(arcLengthAutomated_LX
         "arcLengthAutomated_LX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(arcLengthAutomated_paperTestsLX
+        "arcLengthAutomated_paperTestsLX.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
 
 TUDAT_ADD_EXECUTABLE(arcLengthVariations_LX
         "arcLengthVariations_LX.cpp"
@@ -136,6 +140,10 @@ TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_drag_LX
         "covAnalysis_spiceProp_apriori_drag_LX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_empiricals
+        "covAnalysis_spiceProp_apriori_empiricals.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
 TUDAT_ADD_EXECUTABLE(covAnalysis_spiceProp_apriori_drag_10_LX
         "covAnalysis_spiceProp_apriori_drag_10_LX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
@@ -148,10 +156,76 @@ TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim
         "covAnalysis_singleArcEstim.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_loop
+        "covAnalysis_singleArcEstim_loop.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
 TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_testinv
         "covAnalysis_singleArcEstim_testinv.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_testing
+        "covAnalysis_singleArcEstim_testing.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_testing2
+        "covAnalysis_singleArcEstim_testing2.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_lambda
+        "covAnalysis_singleArcEstim_lambda.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+target_link_libraries(covAnalysis_singleArcEstim_lambda PRIVATE pthread)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo
+        "covAnalysis_singleArcEstim_saveOnGo.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo_noConstraints
+        "covAnalysis_singleArcEstim_saveOnGo_noConstraints.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo_orig
+        "covAnalysis_singleArcEstim_saveOnGo_orig.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo_new
+        "covAnalysis_singleArcEstim_saveOnGo_new.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+add_definitions(-DESIGN_USE_THREADS)
+find_package(Threads REQUIRED)
+target_link_libraries(covAnalysis_singleArcEstim_saveOnGo_new PRIVATE Threads::Threads)
+#TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo_Empiricals.cpp
+#        "covAnalysis_singleArcEstim_saveOnGo_Empiricals.cpp"
+#        ${Tudat_ESTIMATION_LIBRARIES}
+#)
+#TUDAT_ADD_EXECUTABLE(tunner.cpp
+#        "tunner.cpp"
+#        ${Tudat_ESTIMATION_LIBRARIES}
+#)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_withDifferentSecAmps.cpp
+        "covAnalysis_singleArcEstim_withDifferentSecAmps.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_withDifferentSecAmps2.cpp
+        "covAnalysis_singleArcEstim_withDifferentSecAmps2.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(multiThreadingTest.cpp
+        "multiThreadingTest.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+
+TUDAT_ADD_EXECUTABLE(placeHolder.cpp
+        "placeHolder.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+TUDAT_ADD_EXECUTABLE(generate_configs
+        "generate_configs.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+target_include_directories(generate_configs PRIVATE external/json)
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(covAnalysis_singleArcEstim_testinv PRIVATE OpenMP::OpenMP_CXX)

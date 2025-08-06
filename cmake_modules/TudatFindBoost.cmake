@@ -83,6 +83,17 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/debug-posobs-propagation-multiarcLX.cpp
                     ../tests_riva/covAnalysis_singleArcEstim.cpp
                     ../tests_riva/covAnalysis_singleArcEstim_testinv.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_loop.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_testing2.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_lambda.cpp
+                    ../tests_riva/multiThreadingTest.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_withDifferentSecAmps.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_withDifferentSecAmps2.cpp
+                    ../tests_riva/arcLengthAutomated_paperTestsLX.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_saveOnGo_noConstraints.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_saveOnGo_new.cpp
+                    ../tests_riva/tunner.cpp
+                    ../tests_riva/covAnalysis_singleArcEstim_saveOnGo_Empiricals.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

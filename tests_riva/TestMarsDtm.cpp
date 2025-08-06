@@ -49,10 +49,10 @@ int main( ) {
     using namespace basic_mathematics;
     using namespace basic_astrodynamics;
 
-
+    spice_interface::loadStandardSpiceKernels( );
     //std::string filename = "/Users/ralkahal/Documents/PhD/atmodensitypds/dtm_mars";
-    std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";
-
+    //std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";
+    std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
     //marsDtmAtmosphereSettings =
     //std::shared_ptr< AtmosphereSettings > atmosphereSettings;
     std::shared_ptr< AtmosphereSettings > marsDtmAtmosphereSettings;
@@ -121,12 +121,12 @@ int main( ) {
   */
     //for (int altitude = 138E3; altitude <= 1000E3; altitude += 10E3) {
     //  double alt_km = static_cast<double>(altitude);
-    int alt_km = 400E3;
+    int alt_km = 300E3;
     //668 * 24 * 60 * 60
     //for (int time = 0.0; time <= 345600 ; time += 86400) {
         //for (int time = 0; time <= 365 * 24 * 60 * 60; time += 60) {
     //for (int time = 86400; time <= 86400 ; time += 86400) {
-    int time = 86400;
+    int time = 42*86400;
     basic_astrodynamics::DateTime currentDateTime_ = basic_astrodynamics::getCalendarDateFromTime(time);
 
     int minutes = currentDateTime_.getMinute();
@@ -135,18 +135,20 @@ int main( ) {
     int months = currentDateTime_.getMonth();
     int years = currentDateTime_.getYear();
 
-    std::string filename1 = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/" + std::to_string(time) + ".txt";
-    std::ofstream outfile(filename1);
+    //std::string filename1 = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/" + std::to_string(time) + ".txt";
+
+    //std::ofstream outfile(filename1);
 
         //std::cout << "Time: " << time << " minutes: " << minutes << " hours: " << hours << " days: " << days << " months: " << months << " years: " << years << std::endl;
         //double latitude = 0.0;
         //double longitude = 0.0;
-        if (outfile.is_open()) {
+        //if (outfile.is_open()) {
             std::cout<<"File opened successfully"<<std::endl;
             //for (double latitude = -90.0; latitude <= -90.0; latitude += 0.0) {
             //for (double longitude = 0.0; longitude <= 0.0; longitude += 0.0) {
-            double latitude = 15.0;
-            double longitude = 10.0;
+            double latitude = 90.0;
+            double longitude = 90.0;
+    std::cout<<"Latitude: "<<unit_conversions::convertDegreesToRadians(latitude)<<std::endl;
             double rheo = atmosphereModel->getDensity(alt_km, unit_conversions::convertDegreesToRadians(longitude), unit_conversions::convertDegreesToRadians(latitude), time);
             std::cout<<"Density: "<<rheo<<std::endl;
             double rho = atmosphereModel->getTotalDensity(alt_km, unit_conversions::convertDegreesToRadians(latitude), unit_conversions::convertDegreesToRadians(longitude), minutes, hours, days,
@@ -155,14 +157,14 @@ int main( ) {
             auto results = computeSolarLongitude(longitude, days, months, years, hours, minutes);
             double Ls = std::get<0>(results);
             //double currentF107 = 0.0; // Assuming this is defined somewhere
-            outfile << latitude << " " << longitude << " " << rho << " " << Ls << "\n";
+            //outfile << latitude << " " << longitude << " " << rho << " " << Ls << "\n";
               //  }
             //}
 
-        } else {
-            std::cerr << "Error creating file " << filename << std::endl;
-        }
-        outfile.close();
+        //} else {
+        //    std::cerr << "Error creating file " << filename << std::endl;
+        //}
+        //outfile.close();
 
 
 

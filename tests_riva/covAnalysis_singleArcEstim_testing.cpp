@@ -1,4 +1,7 @@
 //
+// Created by ralkahal on 17-2-25.
+//
+//
 // Created by ralkahal on 22-1-25.
 //
 //
@@ -22,6 +25,7 @@
 #include <limits>
 #include "fstream"
 #include "iostream"
+#include <Eigen/Dense>
 
 #include <boost/test/unit_test.hpp>
 
@@ -170,7 +174,7 @@ std::map<double, double> computeNorms(const std::map<double, Eigen::VectorXd>& r
 
         return norms;
 }
-void arcLengthRuns( double hoursperday, double initialTime, double finalTime, int arcLength, int iterationNumber, double perturbPos, double perturbVel, int number_of_arcs, int itotalDuration, int startTime, int intperturbPos, int intperturbVel, int ihoursperday, bool performEst )
+void arcLengthRuns( double hoursperday, double initialTime, double finalTime, int arcLength, int iterationNumber, double perturbPos, double perturbVel, int number_of_arcs, int itotalDuration, int startTime, int intperturbPos, int intperturbVel, int ihoursperday, bool performEst, bool filterArcTimes )
 {
     using namespace tudat;
     using namespace aerodynamics;
@@ -189,7 +193,6 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     using namespace tudat::orbit_determination;
     using namespace tudat::interpolators;
     using namespace tudat::orbital_element_conversions;
-
 
 
     spice_interface::loadStandardSpiceKernels( );
@@ -262,11 +265,11 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext25_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext26_ipng_mgs95j.bsp" );
 
-    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler_apriori/resultsWithObservations/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
+    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler_apriori/testingTheAlgo/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     //std::string fileTag = "DEBUGnoapr234001poly_aprperiodicand18StaticandDragperarc_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
-    //                      + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
-    std::string fileTag = "inverseApr_standard_all_drag_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
-        + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
+     //                     + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
+    std::string fileTag = "SVD_C40_GlobalPars_drag_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+                                  + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
 
     // set input options
     double epehemeridesTimeStep = 60.0;
@@ -274,9 +277,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     double observationsSamplingTime = 60.0;
     double buffer = 30.0 * epehemeridesTimeStep;
     double arcDuration = arcLength*86400.0;//2.0E4;
-    std::string dragEst = "per-halfday";//"per-rev";
+    std::string dragEst = "per-arc";//"per-rev";
     double ndays = 1.0;
     double hoursperdaydrag = 2.0;
+
     //double hoursperday = 10.0;
     //int iterationNumber = 6;
     //const double gravitationalParameter = 4.2828378e13;
@@ -344,7 +348,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 std::make_shared< DirectSpiceEphemerisSettings >( baseFrameOrigin, baseFrameOrientation );
     }
     bodySettings.at( spacecraftName )->constantMass = 1030.5;
-    bodySettings.at( spacecraftName )->ephemerisSettings->resetMakeMultiArcEphemeris( true );
+    //bodySettings.at( spacecraftName )->ephemerisSettings->resetMakeMultiArcEphemeris( true );
 
     // Set gravity field variations
     std::vector< std::shared_ptr< GravityFieldVariationSettings > > gravityFieldVariations;
@@ -420,7 +424,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
     // Set polynomial gravity field variation
     std::map<int, Eigen::MatrixXd> cosineAmplitudes;
-    cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4,5>::Zero( );
+    cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
     //scM/10
 
     /*cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-10/(365*24*3600);
@@ -432,20 +436,27 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
 */
     //scM/0.01
-        cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
+     cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
+     cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
+     cosineAmplitudes[1](0,2) += -2.29416809459079e-12/(365*24*3600);
+     cosineAmplitudes[1](1,0) += -1.96888593742833e-12/(365*24*3600);
+     cosineAmplitudes[1](1,1) += 3.64572599774489e-12/(365*24*3600);
+     cosineAmplitudes[1](1,2) += -1.99682320271527e-12/(365*24*3600);
+     cosineAmplitudes[1](1,3) += 1.19185562092185e-11/(365*24*3600);
+     cosineAmplitudes[1](2,0) += 4.33626663660650e-12/(365*24*3600);
+     cosineAmplitudes[1](2,1) += 5.187166893375834e-13/(365*24*3600);
+     cosineAmplitudes[1](2,2) += 4.704102072862383e-12/(365*24*3600);
+     cosineAmplitudes[1](2,3) += 1.325699794642290e-12/(365*24*3600);
+     cosineAmplitudes[1](2,4) += 1.175466344751454e-12/(365*24*3600);
+        /*cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
         cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
         cosineAmplitudes[1](0,2) += -2.29416809459079e-12/(365*24*3600);
         cosineAmplitudes[1](1,0) += -1.96888593742833e-12/(365*24*3600);
         cosineAmplitudes[1](1,1) += 3.64572599774489e-12/(365*24*3600);
         cosineAmplitudes[1](1,2) += -1.99682320271527e-12/(365*24*3600);
-        cosineAmplitudes[1](1,3) += 1.19185562092185e-11/(365*24*3600);
+        //cosineAmplitudes[1](1,3) += 1.19185562092185e-11/(365*24*3600);
         cosineAmplitudes[1](2,0) += 4.33626663660650e-12/(365*24*3600);
-        cosineAmplitudes[1](2,1) += 5.187166893375834e-13/(365*24*3600);
-        cosineAmplitudes[1](2,2) += 4.704102072862383e-12/(365*24*3600);
-        cosineAmplitudes[1](2,3) += 1.325699794642290e-12/(365*24*3600);
-        cosineAmplitudes[1](2,4) += 1.175466344751454e-12/(365*24*3600);
-
-
+*/
     std::map<int, Eigen::MatrixXd> sineAmplitudes;
         std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
@@ -571,6 +582,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     std::vector< double > integrationArcEndTimes;
     std::vector< double > integrationArcLimits;
 
+    std::vector< double > filteredArcStartTimes;
+    std::vector< double > filteredArcEndTimes;
+
     double integrationStartTime = initialEphemerisTime + 120.0; //1.0E2;
     double integrationEndTime = finalEphemerisTime - 120.0 ; //1.0E2;
     double step_size;
@@ -600,6 +614,14 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     double arcOverlap = 240.0;//2.0E2;
 
     double currentStartTime = integrationStartTime, currentEndTime = integrationStartTime + arcDuration;
+
+    double accumulated_time = 0.0;
+    int count = 0;
+    double one_month_duration = 30.0*86400.0;
+
+
+        std::vector<std::vector<double>> observationTimesPerArc;
+        std::vector<double> allObservationTimes;
     //integrationArcLimits.push_back( currentStartTime );
     //integrationArcEndTimes.push_back( currentEndTime );
     //integrationArcStartTimes.push_back( currentStartTime );
@@ -610,14 +632,50 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         integrationArcLimits.push_back( currentStartTime );
         integrationArcEndTimes.push_back( currentEndTime );
         integrationArcStartTimes.push_back( currentStartTime );
-        currentStartTime = currentEndTime - arcOverlap;
-        std::cout<<"current start time: "<<currentStartTime<<std::endl;
+            /*
+            // create observation times per arc
+            double arcDur = currentEndTime - currentStartTime;
+            int days = static_cast<int>(arcDur / physical_constants::JULIAN_DAY );
+            std::vector<double> initial_times_list = { currentStartTime + buffer};
+            std::vector<double> final_times_list = { initial_times_list[0] + hoursperday * 3600 };
+            for (int day = 1; day < days  ; ++day) {
+                    initial_times_list.push_back(currentStartTime+ buffer + day * 24 * 3600);
+                    double finalTime = initial_times_list[day] + hoursperday * 3600;
+                    if (finalTime > integrationArcEndTimes.back()) {
+                            break;
+                    }
+                    final_times_list.push_back(finalTime);
+            }
+            std::vector<double> observationTimesList;
+            for (int i = 0; i < final_times_list.size(); ++i) {
+                    double start = initial_times_list[i];
+                    double end = final_times_list[i];
+                    for (double time = start; time < end ; time += 10) {
+                            observationTimesList.push_back(time);
+                            allObservationTimes.push_back(time);
+                    }
+            }
+            observationTimesPerArc.push_back(observationTimesList);
+            */
+	//Filtered Arc Times
+	if (count<2){
+	    filteredArcStartTimes.push_back(currentStartTime);
+	    filteredArcEndTimes.push_back(currentEndTime);
+	}
+	accumulated_time += (currentEndTime-currentStartTime);
+	count++;
+	if (accumulated_time>= one_month_duration ){
+	    count = 0;
+	    accumulated_time = 0.0;
+	}
+	//Store integration arc times
+	currentStartTime = currentEndTime - arcOverlap;
         currentEndTime = currentStartTime + arcDuration;
-        std::cout<<"current end time: "<<currentEndTime<<std::endl;
     }while( currentEndTime <= integrationEndTime );
 
     integrationArcLimits.push_back( currentStartTime + arcOverlap );
     std::cout<<"arc times created"<<std::endl;
+
 
         // observations times
         int days = static_cast<int>(totalDuration / physical_constants::JULIAN_DAY );
@@ -635,7 +693,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         for (int day = 1; day < days ; ++day) {
                 double finalTime = initial_times_list[day] + hoursperday * 3600;
                 if (finalTime > integrationArcEndTimes.back()) {
-                       break;
+                        break;
                 }
                 final_times_list.push_back(finalTime);
                 filtered_initial_times_list.push_back(initial_times_list[day]);
@@ -655,7 +713,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
         // Retrieve state history from SPICE
         std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > spiceStateHistory;
-        for ( Time t : observationTimesList )
+        for ( Time t : allObservationTimes )
         {
                 spiceStateHistory[ t.getSeconds< long double >() ] =
                         bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
@@ -668,11 +726,151 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     std::shared_ptr<IntegratorSettings<> >integratorSettings =
        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
         std::cout<<"Integration settings created"<<std::endl;
-    int numberOfIntegrationArcs = integrationArcStartTimes.size( );
+	int numberOfIntegrationArcs;
+	if (filterArcTimes){
+	    numberOfIntegrationArcs = filteredArcStartTimes.size( );
+	}else{
+	    numberOfIntegrationArcs = integrationArcStartTimes.size( );
+	}
 
         std::cout<<"number of integration arcs: "<<numberOfIntegrationArcs<<std::endl;
         std::vector< Eigen::VectorXd > systemInitialStates(numberOfIntegrationArcs, Eigen::VectorXd(6));
+	std::vector<double> arcTimesToEstimate;
+	std::vector<double> arcEndTimesToEstimate;
+	if (filterArcTimes){
+	    arcTimesToEstimate = filteredArcStartTimes;
+	    arcEndTimesToEstimate = filteredArcEndTimes;
+	}else{
+	    arcTimesToEstimate = integrationArcStartTimes;
+	    arcEndTimesToEstimate = integrationArcEndTimes;
+	}
 
+
+        const std::string filenameGrav = "/home/ralkahal/nnew-tudat-tests/jgmro_120d_sha.tab"; 
+        std::vector<GravityCoefficient> coefficients;
+        // Filter and extract errors up to degree and order 8
+        int maxDegree = 4;
+        int minDegree = 2;
+        std::vector<double> cnmErrors;
+        std::vector<double> snmErrors;
+
+        try {
+                // Load the gravity field file
+                loadGravityFieldFile(filenameGrav, coefficients);
+
+                extractErrorsWithinRange(coefficients, minDegree, maxDegree, cnmErrors, snmErrors);
+                std::cout<<"size of Cnm errors: " << cnmErrors.size() << std::endl;
+                std::cout<<"size of Snm errors: " << snmErrors.size() << std::endl;
+        } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                exit(1);
+        }
+
+        // Create link ends
+
+        // Create list of link ends where the ground station is the transmitter and the spacecraft is the receiver
+        std::vector< LinkEnds > stationTransmitterLinkEnds;
+        std::vector< LinkEnds > downlinkLinkEnds_;
+        std::vector< LinkEnds > uplinkLinkEnds_;
+        std::vector< std::string > GroundStations = {  "DSS-26" , "DSS-42", "DSS-61"};
+        for ( std::string groundStation : GroundStations ) {
+                // Define link ends for observations.
+                LinkEnds linkEnds;
+                linkEnds[transmitter] = LinkEndId("Earth", groundStation);
+                linkEnds[reflector1] = spacecraftName;
+                linkEnds[receiver] = LinkEndId("Earth", groundStation);
+                stationTransmitterLinkEnds.push_back( linkEnds );
+
+                LinkEnds uplinkLinkEnds;
+                uplinkLinkEnds[transmitter] = LinkEndId("Earth", groundStation);
+                uplinkLinkEnds[receiver] = spacecraftName;
+                uplinkLinkEnds_.push_back( uplinkLinkEnds );
+
+                LinkEnds downlinkLinkEnds;
+                downlinkLinkEnds[receiver] = LinkEndId("Earth", groundStation);
+                downlinkLinkEnds[transmitter] = spacecraftName;
+
+                downlinkLinkEnds_.push_back( downlinkLinkEnds );
+        }
+        // Define (arbitrary) link ends for each observable
+        std::map< ObservableType, std::vector< LinkEnds > > linkEndsPerObservable;
+
+        linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
+        linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
+        linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 2 ] );
+        std::cout<<"link ends created"<<std::endl;
+
+        std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
+        for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
+        linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
+        {
+                ObservableType currentObservable = linkEndIterator->first;
+
+                std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
+                for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
+                {
+                        observationSettingsList.push_back(
+                        std::make_shared< ObservationModelSettings >(
+                        currentObservable, currentLinkEndsList.at( i ), std::shared_ptr< LightTimeCorrectionSettings >( ) ) );
+                }
+        }
+        std::cout<<"observation settings created"<<std::endl;
+        std::vector< std::shared_ptr< ObservationViabilitySettings > > observationViabilitySettings;
+        for ( std::string groundStation : GroundStations )
+        {
+                observationViabilitySettings.push_back( std::make_shared< ObservationViabilitySettings >(
+                minimum_elevation_angle, std::make_pair( "Earth", groundStation ), "",
+                                unit_conversions::convertDegreesToRadians( 15.0 ) ) );
+                observationViabilitySettings.push_back( std::make_shared<ObservationViabilitySettings>(
+                body_occultation,
+                std::make_pair(groundStation, spacecraftName),
+                "Mars",
+                TUDAT_NAN
+                ));
+        }
+        std::cout<<"Observation viability settings created"<<std::endl;
+
+        std::vector< std::shared_ptr< ObservationViabilityCalculator > > viabilityCalculators;
+        for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
+        linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
+        {
+                ObservableType currentObservable = linkEndIterator->first;
+                std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
+                for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
+                {
+                        std::vector< std::shared_ptr< ObservationViabilityCalculator > > calculators =
+                                createObservationViabilityCalculators(bodies, currentLinkEndsList.at(i), currentObservable, observationViabilitySettings);
+                        viabilityCalculators.insert(viabilityCalculators.end(), calculators.begin(), calculators.end());
+                }
+        }
+        std::cout<<"Observation viability calculator created"<<std::endl;
+        // Define the noise functions map with the required type
+        std::map< ObservableType, std::function< Eigen::VectorXd( const double ) > > noiseFunctions;
+
+        // Create observation viability settings and calculators
+        noiseFunctions[ two_way_doppler ] =
+                [=](const double input) -> Eigen::VectorXd {
+                        // Call the original function that returns a double
+                        double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+                        createBoostContinuousRandomVariableGeneratorFunction(
+                        tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
+                        ), input
+                        );
+                        // Convert the double to Eigen::VectorXd
+                        Eigen::VectorXd result(1);
+                        result(0) = noiseValue;
+                        return result;
+        };
+        std::cout<<"noise functions created"<<std::endl;
+
+        std::vector< Eigen::MatrixXd > covarianceMatrices;
+        //std::vector<Eigen::MatrixXd> inverseUnnormalizedCovarianceMatrices;
+        std::vector<Eigen::VectorXd> weightDiagonals;
+        std::vector<Eigen::MatrixXd> unnormalizedDesignMatrices;
+	std::vector<Eigen::MatrixXd> normalizedDesignMatrices;
+        int numberOfGlobalParameters;
+	std::vector<Eigen::MatrixXd> inverseNormalizedCovarianceMatrices;
+        std::vector<Eigen::VectorXd> normalizationFactors;
         // create multi arc propagation settings
         std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
         for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
@@ -680,27 +878,471 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 std::cout<<"iteration started"<<std::endl;
                 std::cout<<i<<std::endl;
                 std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
-                std::cout<<integrationArcStartTimes.at(i)<<std::endl;
-
+                std::vector<double> filteredObservationTimes;
+		std::ofstream feo(saveDirectory + "observationTimes_arc_" + std::to_string(i) +  fileTag + ".txt");
+                for (const auto& time : observationTimesList) {
+                    if (time >= arcTimesToEstimate.at(i) + buffer && time <= arcEndTimesToEstimate.at(i)-buffer) {
+                        filteredObservationTimes.push_back(time);
+			feo <<  std::setprecision(32) <<time <<"\n";
+                    }
+                }
+                feo.close();
+		observationTimesPerArc.push_back(filteredObservationTimes);
+                //std::cout<<integrationArcStartTimes.at(i)<<std::endl;
                 systemInitialStates[ i ]  = spice_interface::getBodyCartesianStateAtEpoch(
-                        bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", integrationArcStartTimes.at(i));
+                        bodiesToIntegrate[ 0 ], "Mars", "MARSIAU", "NONE", arcTimesToEstimate.at(i));
+                std::cout<<systemInitialStates[i]<<std::endl;
                 std::cout<<"system initial states created"<<std::endl;
-                arcPropagationSettingsList.push_back(
-                        std::make_shared< TranslationalStatePropagatorSettings< double > >
-                                ( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                                  systemInitialStates.at(i), integrationArcEndTimes.at( i ), cowell, dependentVariablesToSave, TUDAT_NAN ) );
+                // Create termination settings
+                std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
+                        arcEndTimesToEstimate.at(i) );
+
+                std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
+                                                                                                                                                      systemInitialStates[i], arcTimesToEstimate.at(i), integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
+
+                SingleArcDynamicsSimulator< > dynamicsSimulator(
+                        bodies, propagatorSettings );
+
+                std::map< double, Eigen::VectorXd > stateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+                writeDataMapToTextFile( stateHistory, "stateHistoryPropagation_arc_" + std::to_string(i) + fileTag + ".txt", saveDirectory,
+                                "", 18, 18 );
+
+                std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
+    	        getInitialStateParameterSettings< double, double  >( propagatorSettings, bodies);
+                parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName,constant_drag_coefficient));// initial_times_list_drag ));
+                parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                                                         2, 0, 4, 0, "Mars", spherical_harmonics_cosine_coefficient_block ) );
+
+                //parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                //                         2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
+                //parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                //                              2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
+
+                std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
+                //periodic gravity field
+                cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
+                //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+                cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
+                cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
+                cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
+
+	        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 2, 0) );
+                //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+                cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 3, 0 ) );
+                cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 4, 0 ) );
+                cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 5, 0 ) );
+
+	        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 2, 0) );
+                //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+                cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 3, 0 ) );
+                cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 4, 0 ) );
+                cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 5, 0 ) );
+	        std::cout<<" cosine block indices per period size"<<cosineBlockIndicesPerPeriod[0].size()<<std::endl;
+
+                std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPeriod;
+                //parameterNames.push_back( std::make_shared< PeriodicGravityFieldVariationEstimatableParameterSettings >(
+                //        centralBody, cosineBlockIndicesPerPeriod, sineBlockIndicesPerPeriod ) );
+
+                 std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPower;
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 0 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 0 ) );
+		 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 1 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 2 ) );
+		 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 3 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
+		 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 1 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
+		 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
+                 cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
+
+                //std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPower;
+                //cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 0 ) );
+                //cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+                //cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+                //cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 0 ) );
+                //cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
+               // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
+               // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
+                std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
+                //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+                //parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
+                //        "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
+
+
+                std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
+                            createParametersToEstimate< double, double >( parameterNames, bodies );
+
+                std::cout<<"parameters to estimate created"<<std::endl;
+
+                // Create orbit determination object.
+                OrbitDeterminationManager< double, double > orbitDeterminationManager =
+                        OrbitDeterminationManager< double, double >(
+                                bodies, parametersToEstimate,
+                                observationSettingsList, propagatorSettings,true );
+                std::cout<<"orbit determination manager created"<<std::endl;
+
+
+                Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
+                    parametersToEstimate->template getFullParameterValues< double >( );
+
+                std::vector< std::shared_ptr< ObservationSimulationSettings< double > > > measurementSimulationInput;
+                for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
+                     linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
+                {
+                        ObservableType currentObservable = linkEndIterator->first;
+                        std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
+                        //std::function< double( const double ) > noiseFunction = noiseFunctions[currentObservable];
+                        for( unsigned int currLinkEnd = 0; currLinkEnd < currentLinkEndsList.size( ); currLinkEnd++ )
+                        {
+                                measurementSimulationInput.push_back(
+                                        std::make_shared< TabulatedObservationSimulationSettings< > >(
+                                                currentObservable, currentLinkEndsList[ currLinkEnd ], observationTimesPerArc[i], receiver, observationViabilitySettings, noiseFunctions[currentObservable]) );
+                        }
+                }
+
+                // Simulate observations.
+                std::shared_ptr< ObservationCollection< > > observationsAndTimes = simulateObservations< double, double >(
+                        measurementSimulationInput, orbitDeterminationManager.getObservationSimulators( ), bodies );
+                std::cout<<"observations and times created"<<std::endl;
+
+                Eigen::Matrix< double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
+                int numberOfParameters = initialParameterEstimate.rows( );
+                numberOfGlobalParameters = numberOfParameters - 7;
+                std::cout<<"number of parameters: "<<numberOfParameters<<std::endl;
+                printEstimatableParameterEntries( parametersToEstimate );
+
+                // Create a 2D vector (matrix) filled with zeros
+	        // since it is one arc together with the one drag coefficient, the first diagonal matix is 7x7
+	        const int DIAGONALS = 7;
+
+                Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
+
+                double aprioriuncertainty =1.0/(10*10);
+                matrix(DIAGONALS-1,DIAGONALS-1) = aprioriuncertainty;
+
+
+                // Print the extracted errors
+                // Fill the matrix with the values of the diagonal
+                for (int j = 0; j < cnmErrors.size(); ++j) {
+                                matrix(j+DIAGONALS,j+DIAGONALS) = cnmErrors[j];
+                }
+                std::cout<<"matrix filled with Cnm errors size: "<< cnmErrors.size()+DIAGONALS <<std::endl;
+                /*
+                for (int j= 0; j < snmErrors.size(); ++j) {
+                        matrix(j+DIAGONALS+cnmErrors.size(),j+DIAGONALS+cnmErrors.size()) = snmErrors[j];
+                }
+                */
+                /*
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+3, DIAGONALS+cnmErrors.size()+snmErrors.size()+3) = 1.0/(0.011E-09*0.011E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+4, DIAGONALS+cnmErrors.size()+snmErrors.size()+4) = 1.0/(0.101E-10*0.101E-10);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+5, DIAGONALS+cnmErrors.size()+snmErrors.size()+5) = 1.0/(0.101E-10*0.101E-10);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+6, DIAGONALS+cnmErrors.size()+snmErrors.size()+6) = 1.0/(0.010E-09*0.010E-09);
+	        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+7, DIAGONALS+cnmErrors.size()+snmErrors.size()+7) = 1.0/(0.010E-09*0.010E-09);
+
+	        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+8, DIAGONALS+cnmErrors.size()+snmErrors.size()+8) = 1.0/(0.016E-09*0.016E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+9, DIAGONALS+cnmErrors.size()+snmErrors.size()+9) = 1.0/(0.016E-09*0.016E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+10, DIAGONALS+cnmErrors.size()+snmErrors.size()+10) = 1.0/(0.011E-09*0.011E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+11, DIAGONALS+cnmErrors.size()+snmErrors.size()+11) = 1.0/(0.011E-09*0.011E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+12, DIAGONALS+cnmErrors.size()+snmErrors.size()+12) = 1.0/(0.101E-10*0.101E-10);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+13, DIAGONALS+cnmErrors.size()+snmErrors.size()+13) = 1.0/(0.101E-10*0.101E-10);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+14, DIAGONALS+cnmErrors.size()+snmErrors.size()+14) = 1.0/(0.010E-09*0.010E-09);
+	        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+15, DIAGONALS+cnmErrors.size()+snmErrors.size()+15) = 1.0/(0.010E-09*0.010E-09);
+
+	        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+16, DIAGONALS+cnmErrors.size()+snmErrors.size()+16) = 1.0/(0.016E-09*0.016E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+17, DIAGONALS+cnmErrors.size()+snmErrors.size()+17) = 1.0/(0.016E-09*0.016E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+18, DIAGONALS+cnmErrors.size()+snmErrors.size()+18) = 1.0/(0.011E-09*0.011E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+19, DIAGONALS+cnmErrors.size()+snmErrors.size()+19) = 1.0/(0.011E-09*0.011E-09);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+20, DIAGONALS+cnmErrors.size()+snmErrors.size()+20) = 1.0/(0.101E-10*0.101E-10);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+21, DIAGONALS+cnmErrors.size()+snmErrors.size()+21) = 1.0/(0.101E-10*0.101E-10);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+22, DIAGONALS+cnmErrors.size()+snmErrors.size()+22) = 1.0/(0.010E-09*0.010E-09);
+	        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+23, DIAGONALS+cnmErrors.size()+snmErrors.size()+23) = 1.0/(0.010E-09*0.010E-09);
+
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;///(0.1E-19*0.1E-19);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;///(0.1E-19*0.1E-19);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;///(0.1E-19*0.1E-19);
+                matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;///(0.1E-19*0.1E-19);
+	        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;///(0.1E-19*0.1E-19);
+*/
+
+
+                std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
+                        std::make_shared< CovarianceAnalysisInput< double, double > >(
+                        observationsAndTimes,matrix );
+                std::cout<<"covariance input created"<<std::endl;
+                std::map< observation_models::ObservableType, double > weightPerObservable;
+                //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
+                // weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
+                weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+
+                covarianceInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
+
+
+                std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
+                            covarianceInput );
+                std::cout<<"covariance output created"<<std::endl;
+
+		Eigen::MatrixXd unnormalizedDesignMatrix = covarianceOutput->getUnnormalizedDesignMatrix( );
+                //std::ofstream fe(saveDirectory + "unnormalizedDesignMatrix_arc_" + std::to_string(i) +  fileTag + ".txt");
+                //fe <<  std::setprecision(32) <<unnormalizedDesignMatrix;
+                //fe.close();
+		unnormalizedDesignMatrices.push_back(unnormalizedDesignMatrix);
+
+		Eigen::MatrixXd normalizedDesignMatrix = covarianceOutput->getNormalizedDesignMatrix( );
+                //std::ofstream fe2(saveDirectory + "normalizedDesignMatrix" + std::to_string(i)  + fileTag + ".txt");
+                // Write the matrix to the file
+                //fe2 << std::setprecision(32) <<normalizedDesignMatrix;
+                // Close the file
+                //fe2.close();
+                normalizedDesignMatrices.push_back(normalizedDesignMatrix);
+
+                Eigen::VectorXd weightMatrixDiagonal = covarianceOutput->weightsMatrixDiagonal_;
+                weightDiagonals.push_back(weightMatrixDiagonal);
+                //std::ofstream fe3(saveDirectory + "weightsMatrixDiagonal_arc_" + std::to_string(i) +fileTag + ".txt");
+                // Write the matrix to the file
+                //fe3 <<  std::setprecision(32) << weightMatrixDiagonal;
+                // Close the file
+                //fe3.close();
+                // Eigen::MatrixXd inverseUnnormalizedCovarianceMatrix = covarianceOutput->getUnnormalizedInverseCovarianceMatrix( );
+                //inverseUnnormalizedCovarianceMatrices.push_back(inverseUnnormalizedCovarianceMatrix);
+                //std::ofstream fein(saveDirectory + "inverseUnormalizedCovarianceMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
+                //fein <<  std::setprecision(32) <<inverseUnnormalizedCovarianceMatrix;
+                //fein.close();
+
+                Eigen::MatrixXd inverseNormalizedCovarianceMatrix = covarianceOutput->getNormalizedInverseCovarianceMatrix( );
+                inverseNormalizedCovarianceMatrices.push_back(inverseNormalizedCovarianceMatrix);
+                //std::ofstream fean(saveDirectory + "inverseNormalizedCovarianceMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
+                //fean <<  std::setprecision(32) <<inverseNormalizedCovarianceMatrix;
+                //fean.close();
+
+                ////std::ofstream fe4(saveDirectory + "normalizedCovarianceMatrix" + fileTag + ".txt");
+                // Write the matrix to the file
+                ////fe4 << covarianceOutput->normalizedCovarianceMatrix_;
+                // Close the file
+                ////fe4.close();
+                Eigen::VectorXd normalizationFactor = covarianceOutput->designMatrixTransformationDiagonal_;
+                normalizationFactors.push_back(normalizationFactor);
+                //std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal_arc_" + std::to_string(i)  + fileTag + ".txt");
+                //fe5 <<  std::setprecision(32) <<normalizationFactor;
+                //fe5.close();
+
+                Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
+                //std::ofstream file10 (saveDirectory + "correlationMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
+                //file10 << std::setprecision(32) << correlationMatrix ;
+                //file10.close( );
+
+                Eigen::MatrixXd covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );
+                covarianceMatrices.push_back(covarianceMatrix);
+
+                //std::ofstream file11 (saveDirectory + "conCovarianceMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
+                //file11 << std::setprecision(32) << covarianceMatrix ;
+                //file11.close( );
+
+                Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = covarianceOutput->getFormalErrorVector( );
+                std::cout<<"formal error: "<<covarianceOutput->getFormalErrorVector( ).transpose( )<<std::endl;
+                //std::ofstream file12 (saveDirectory + "FormalError_arc_" + std::to_string(i) + fileTag + ".txt");
+                //file12 << std::setprecision(32) << FormalError ;
+                //file12.close( );
+
         }
+        std::cout<<"covariance analysis for all the arcs done, starting summing them up..."<<std::endl;
+        std::cout<< "number of global parameters: "<< numberOfGlobalParameters<<std::endl;
+	int numberOfLocalParameters = 7;
+        int stateVectorSize =6;
+        int nLocal=1;
+	int numCols = numberOfGlobalParameters;
+        int nArcs = normalizedDesignMatrices.size();
+        int arcMatrixSize = normalizedDesignMatrices[0].rows();
+        int total_size = nArcs*(numberOfLocalParameters) + numberOfGlobalParameters;
+        Eigen::MatrixXd P_global = Eigen::MatrixXd::Zero(total_size,total_size);
 
-        std::cout<<"single arc propagation done"<<std::endl;
-        std::shared_ptr< MultiArcPropagatorSettings< double > > multiArcPropagatorSettings =
-                validateDeprecatedMultiArcSettings< double, double >(
-                        integratorSettings, std::make_shared< MultiArcPropagatorSettings< double > >( arcPropagationSettingsList ),
-                        integrationArcStartTimes, false, true );
 
-        MultiArcDynamicsSimulator< > dynamicsSimulator(
-            bodies, multiArcPropagatorSettings );
+        // merge normalization factors for all matrices, except for the global parameters
+        Eigen::VectorXd normalizationFactorsMerged = Eigen::VectorXd::Zero(total_size);
+        //Eigen::VectorXd localNormalizationFactors= Eigen::VectorXd::Zero(nArcs * nLocal);;
+	size_t stateOffst= 0;
+	size_t localOffst = nArcs*6;
+        for (int i = 0; i < nArcs; i++){
+            normalizationFactorsMerged.segment(stateOffst + i*(6),6) = normalizationFactors[i].segment(0,6);
+                std::cout<<"first normalization factor merged"<<std::endl;
+            normalizationFactorsMerged.segment(localOffst+i*nLocal,nLocal) = normalizationFactors[i].segment(6,nLocal);
+                std::cout<<"second normalization factor merged"<<std::endl;
+        }
+        //normalizationFactorsMerged.segment(nArcs*(numberOfLocalParameters-1),nLocal*nArcs) = localNormalizationFactors;
+        std::cout<<"Normalization factors merged!"<<std::endl;
+	//int totalRows = unnormalizedDesignMatrices.size() * unnormalizedDesignMatrices[0].rows();
+	int totalRows = std::accumulate(unnormalizedDesignMatrices.begin(), unnormalizedDesignMatrices.end(),0,[](int sum, const Eigen::MatrixXd& mat) {return sum + mat.rows();});
+	std::cout<<"totalRows"<< totalRows<<std::endl;
+	Eigen::MatrixXd stackedGlobalParsDesignMatrix(totalRows,numCols);
+
+	// Extract and stack columns
+	int position = 0;
+	for (const auto &mat: unnormalizedDesignMatrices){
+	    for (size_t j = 0; j<numberOfGlobalParameters; j++){
+		std::cout<<"j"<<j<<std::endl;
+		std::cout<<numberOfLocalParameters+j<<std::endl;
+		std::cout<<mat.rows()<<std::endl;
+		stackedGlobalParsDesignMatrix.block(position,j,mat.rows(),1) = mat.col(numberOfLocalParameters+j);
+		
+	    }
+	    position += mat.rows();
+	}
+	std::cout<<"Stacked unnormalized design matrix of global parameters!"<<std::endl;
+	std::cout<<"Now performing normalization..."<<std::endl;
+
+	// Normalize the columns of the stacked global parameters of the design matrices
+	Eigen::VectorXd normalizationFactorsGP(stackedGlobalParsDesignMatrix.cols());
+
+	for (int k = 0; k < stackedGlobalParsDesignMatrix.cols(); k++){
+	    Eigen::Index maxIndex;
+	    double maxAbsVal = stackedGlobalParsDesignMatrix.col(k).cwiseAbs().maxCoeff(&maxIndex);
+	    double maxVal = stackedGlobalParsDesignMatrix(maxIndex,k);
+	    if (maxVal != 0.0){
+		stackedGlobalParsDesignMatrix.col(k) /= maxVal;
+		normalizationFactorsGP[k] = maxVal;
+	    }
+	}
+        normalizationFactorsMerged.segment(nArcs*numberOfLocalParameters,numberOfGlobalParameters) = normalizationFactorsGP;
+	std::cout<<"Done with normalization!"<<std::endl;
+	std::cout<<"Now bringing back the values to the normalized design matrices..."<<std::endl;
+	// Reconstructing normalized matrix
+	position = 0;
+	int R = 0;
+	for (auto &mat: normalizedDesignMatrices){
+	    for (size_t j = 0; j<numberOfGlobalParameters; j++){
+	            mat.col(numberOfLocalParameters+j) = stackedGlobalParsDesignMatrix.block(position,j,mat.rows(),1);
+	    }
+	    position += mat.rows();
+	    //std::ofstream feR(saveDirectory + "updateNormalizedDesignMatrix" + std::to_string(R)  + fileTag + ".txt");
+            // Write the matrix to the file
+            //feR << std::setprecision(32) <<mat;
+            // Close the file
+            //feR.close();
+	    R +=1;
+	}
 
 
+	std::cout<<"Updated normalized design matrices!"<<std::endl;
+	std::cout<<"Now computing the covariance matrices..."<<std::endl;
+	std::vector<Eigen::MatrixXd> resultNormalizedInvCovMatrices;
+	for (size_t i = 0; i < normalizedDesignMatrices.size(); i++){
+	    Eigen::DiagonalMatrix<double,Eigen::Dynamic> W(weightDiagonals[i]);
+	    Eigen::MatrixXd resultNormalizedInvCovMatrix = normalizedDesignMatrices[i].transpose() * W * normalizedDesignMatrices[i];
+	    resultNormalizedInvCovMatrices.push_back(resultNormalizedInvCovMatrix);
+	}
+	std::cout<<"Normalized inverse covariance matrices computed!"<<std::endl;
+	std::cout<<"Now summing up the values for the global parameters..."<<std::endl;
+	//Eigen::MatrixXd sumCovarianceMatrix = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
+        //Eigen::MatrixXd inverseUnnCovarianceMatrixSummed = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
+        Eigen::MatrixXd inverseNormalizedCovarianceMatrixSummedGP = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
+	for (int i = 0; i < resultNormalizedInvCovMatrices.size(); i++){
+                //inverseUnnCovarianceMatrixSummed += inverseUnnormalizedCovarianceMatrices[i].block(7,7,numberOfGlobalParameters,numberOfGlobalParameters);
+                //sumCovarianceMatrix += covarianceMatrices[i].block(7,7,numberOfGlobalParameters,numberOfGlobalParameters);
+    		inverseNormalizedCovarianceMatrixSummedGP += resultNormalizedInvCovMatrices[i].block(numberOfLocalParameters,numberOfLocalParameters,numberOfGlobalParameters,numberOfGlobalParameters);
+	}
+	std::cout<<"Global parameters values summed up!"<<std::endl;
+        std::cout<<"Now assembling the global normalized inverse covariance matrix..."<<std::endl;
+        //std::vector<Eigen::MatrixXd> P_arc_local(nArcs, Eigen::MatrixXd::Zero(stateVectorSize,nLocal));
+        //std::vector<Eigen::MatrixXd> P_local_params(nArcs, Eigen::MatrixXd::Zero(nLocal,nLocal));
+        /*
+        for (int i =0; i<nArcs; i++) {
+                P_arc_local[i] = inverseNormalizedCovarianceMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal);
+                P_local_params[i] = inverseNormalizedCovarianceMatrices[i].block(stateVectorSize,stateVectorSize,nLocal,nLocal);
+        }
+        std::vector<Eigen::MatrixXd> P_arc_global(nArcs, Eigen::MatrixXd::Zero(stateVectorSize,numberOfGlobalParameters));
+        std::vector<Eigen::MatrixXd> P_local_global(nArcs, Eigen::MatrixXd::Zero(nLocal,numberOfGlobalParameters));
+        for (int i =0; i<nArcs; i++) {
+                P_arc_global[i] = inverseNormalizedCovarianceMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numberOfGlobalParameters);
+                P_local_global[i] = inverseNormalizedCovarianceMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numberOfGlobalParameters);
+        }
+        */
+// fill in the global matrix
+        int globalOffset = nArcs*(stateVectorSize+nLocal);
+
+        for (int i = 0; i<nArcs;i++) {
+                int localOffset = nArcs*stateVectorSize+i*nLocal;
+                //arc covariance matrix
+                P_global.block(i*stateVectorSize,i*stateVectorSize,stateVectorSize,stateVectorSize) = inverseNormalizedCovarianceMatrices[i].block(0,0,stateVectorSize,stateVectorSize);
+                //arc-local covariance matrix
+                P_global.block(i*stateVectorSize,localOffset,stateVectorSize,nLocal) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal);
+                //local-arc covariance matrix
+                P_global.block(localOffset,i*stateVectorSize,nLocal,stateVectorSize) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal).transpose();
+                //local-local covariance matrix
+                P_global.block(localOffset,localOffset,nLocal,nLocal) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize,nLocal,nLocal);
+
+                //arc-global covariance matrix
+                P_global.block(i*stateVectorSize,globalOffset,stateVectorSize,numberOfGlobalParameters) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numberOfGlobalParameters);
+                //global-arc covariance matrix
+                P_global.block(globalOffset,i*stateVectorSize,numberOfGlobalParameters,stateVectorSize) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numberOfGlobalParameters).transpose();
+                //local-global covariance matrix
+                P_global.block(localOffset,globalOffset,nLocal,numberOfGlobalParameters) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numberOfGlobalParameters);
+                //global-local covariance matrix
+                P_global.block(globalOffset,localOffset,numberOfGlobalParameters,nLocal) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numberOfGlobalParameters).transpose();
+        }
+        // global-global covariance matrix
+        P_global.block(globalOffset,globalOffset,numberOfGlobalParameters,numberOfGlobalParameters) = inverseNormalizedCovarianceMatrixSummedGP;
+        std::cout<<"Global normalized inverse covariance matrix assembled!"<<std::endl;
+        std::cout<<"Now updating the normalization factors"<<std::endl;
+        Eigen::VectorXd normalizationFactorsGP2 = Eigen::VectorXd::Zero(total_size);
+        normalizationFactorsGP2.head(stackedGlobalParsDesignMatrix.cols()) = normalizationFactorsGP;
+	Eigen::JacobiSVD<Eigen::MatrixXd> svd(P_global, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        double tol = 1e-08;
+	double cond = svd.singularValues()(0)/svd.singularValues().tail(1)(0);
+	std::cout << "condition number: " << cond <<std::endl;
+
+        std::cout<<"Now inverting the inverse covariance matrices..."<<std::endl;
+        //Eigen::MatrixXd NormalizedCovarianceMatrixSummed = P_global.completeOrthogonalDecomposition().pseudoInverse();
+        Eigen::MatrixXd NormalizedCovarianceMatrixSummed;
+        Eigen::VectorXd S_inv = svd.singularValues();
+        for (int i = 0; i < S_inv.size(); ++i) {
+            if (S_inv(i) > tol) {
+                S_inv(i) = 1.0 / S_inv(i);
+            } else {
+                S_inv(i) = 0.0;
+            }
+        }
+        NormalizedCovarianceMatrixSummed = svd.matrixV() * S_inv.asDiagonal() * svd.matrixU().transpose();
+
+        std::ofstream file17 (saveDirectory + "sumNormalizedCovarianceMatrix" + fileTag + ".txt");
+        file17 << std::setprecision(32) << NormalizedCovarianceMatrixSummed;
+        file17.close( );
+	std::cout<<"Normalized covariance matrix inverted!"<<std::endl;
+	std::cout<<"Now unnormalizing it back again..."<<std::endl;
+        //Eigen::MatrixXd normalizDiagonals = normalizationFactorsMerged.asDiagonal();
+        Eigen::MatrixXd resultedUnnormalizedCovarianceMatrix = Eigen::MatrixXd::Zero(total_size,total_size);
+        for( int i = 0; i < normalizationFactorsMerged.rows( ); i++ )
+        {
+                for( int j = 0; j < normalizationFactorsMerged.rows( ); j++ )
+                {
+                        resultedUnnormalizedCovarianceMatrix(i,j) = NormalizedCovarianceMatrixSummed( i, j ) /  (normalizationFactorsMerged( i ) *  normalizationFactorsMerged( j ));
+
+                }
+        }
+	//Eigen::MatrixXd resultedUnnormalizedCovarianceMatrix = normalizDiagonals*NormalizedCovarianceMatrixSummed * normalizDiagonals;
+	std::cout<<"Unnormalization done!"<<std::endl;
+	std::cout<<"Now saving the matrices..."<<std::endl;
+
+	std::ofstream file13 (saveDirectory + "resultedUnnormalizedCovarianceMatrix" + fileTag + ".txt");
+        file13 << std::setprecision(32) << resultedUnnormalizedCovarianceMatrix ;
+        file13.close( );
+        //std::ofstream file14 (saveDirectory + "normalizationFactors" + fileTag + ".txt");
+        //file14 << std::setprecision(32) << normalizationFactorsMerged ;
+        //file14.close( );
+        //std::ofstream file15 (saveDirectory + "sumCovarianceMatrix" + fileTag + ".txt");
+        //file15 << std::setprecision(32) << sumCovarianceMatrix ;
+        //file15.close( );
+	std::ofstream file16 (saveDirectory + "suminverseNormalizedCovarianceMatrix" + fileTag + ".txt");
+        file16 << std::setprecision(32) << P_global;
+        file16.close( );
+
+
+        //std::cout<<"single arc propagation done"<<std::endl;
+
+/*
         std::map< double, Eigen::Matrix< double,Eigen::Dynamic,1> > integrationResult;
         std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > dependentVariableResult;
         for ( unsigned int arcIndex = 0; arcIndex < numberOfIntegrationArcs; ++arcIndex ) {
@@ -756,166 +1398,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         writeDataMapToTextFile( angles, "BetaAngles_" + fileTag + ".txt", saveDirectory,
                                 "", 18, 18 );
 
+*/
 
-
-        // Create parameters to estimate
-        std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
-          getInitialMultiArcParameterSettings< double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
-
-        parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName,integrationArcStartTimes));
-        //parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-        //                                                 2, 0, 4, 0, "Mars", spherical_harmonics_cosine_coefficient_block ) );
-
-        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                 2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
-        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                      2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
-
-        std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
-        
-        //periodic gravity field
-        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
-        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
-        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
-        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
-
-	cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
-        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 3, 0 ) );
-        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 4, 0 ) );
-        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 5, 0 ) );
-
-	cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
-        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 3, 0 ) );
-        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 4, 0 ) );
-        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 5, 0 ) );
-	std::cout<<" cosine block indices per period size"<<cosineBlockIndicesPerPeriod[0].size()<<std::endl;
-
-        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPeriod;
-        parameterNames.push_back( std::make_shared< PeriodicGravityFieldVariationEstimatableParameterSettings >(
-                centralBody, cosineBlockIndicesPerPeriod, sineBlockIndicesPerPeriod ) );
-
-        std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPower;
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
-       // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
-       // cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
-        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
-        //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
-        parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
-                "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
-
-        std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
-                    createParametersToEstimate< double, double >( parameterNames, bodies );
-
-        std::cout<<"parameters to estimate created"<<std::endl;
-
-
-
-    // Create link ends
-    // Create list of link ends where the ground station is the transmitter and the spacecraft is the receiver
-    std::vector< LinkEnds > stationTransmitterLinkEnds;
-    std::vector< LinkEnds > downlinkLinkEnds_;
-    std::vector< LinkEnds > uplinkLinkEnds_;
-    //linkEnds[ receiver ] = spacecraftName;
-    std::vector< std::string > GroundStations = {  "DSS-26" , "DSS-42", "DSS-61"};
-    for ( std::string groundStation : GroundStations ) {
-        //    linkEnds[ transmitter ] = LinkEndId( "Earth", groundStation );
-        //    linkEnds[ receiver ] = spacecraftName;
-        //
-        //}
-        // Define link ends for observations.
-        LinkEnds linkEnds;
-        linkEnds[transmitter] = LinkEndId("Earth", groundStation);
-        linkEnds[reflector1] = spacecraftName;
-        linkEnds[receiver] = LinkEndId("Earth", groundStation);
-        stationTransmitterLinkEnds.push_back( linkEnds );
-
-        LinkEnds uplinkLinkEnds;
-        uplinkLinkEnds[transmitter] = LinkEndId("Earth", groundStation);
-        uplinkLinkEnds[receiver] = spacecraftName;
-        uplinkLinkEnds_.push_back( uplinkLinkEnds );
-
-        LinkEnds downlinkLinkEnds;
-        downlinkLinkEnds[receiver] = LinkEndId("Earth", groundStation);
-        downlinkLinkEnds[transmitter] = spacecraftName;
-
-        downlinkLinkEnds_.push_back( downlinkLinkEnds );
-    }
-    // Define (arbitrary) link ends for each observable
-    std::map< ObservableType, std::vector< LinkEnds > > linkEndsPerObservable;
-    // linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 0 ] );
-    // linkEndsPerObservable[ one_way_range ].push_back( uplinkLinkEnds_[ 0 ] );
-    // linkEndsPerObservable[ one_way_range ].push_back( downlinkLinkEnds_[ 1 ] );
-
-    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
-    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
-    linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 2 ] );
-    std::cout<<"link ends created"<<std::endl;
-
-    std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
-    for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
-         linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
-    {
-        ObservableType currentObservable = linkEndIterator->first;
-
-        std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
-        for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
-        {
-            observationSettingsList.push_back(
-                    std::make_shared< ObservationModelSettings >(
-                            currentObservable, currentLinkEndsList.at( i ), std::shared_ptr< LightTimeCorrectionSettings >( ) ) );
-        }
-    }
-
-    std::cout<<"observation settings created"<<std::endl;
-
-    // Create orbit determination object.
-    OrbitDeterminationManager< double, double > orbitDeterminationManager =
-            OrbitDeterminationManager< double, double >(
-                    bodies, parametersToEstimate,
-                    observationSettingsList, multiArcPropagatorSettings );
-    std::cout<<"orbit determination manager created"<<std::endl;
-
-
-    // Create observation viability settings and calculators
-    std::vector< std::shared_ptr< ObservationViabilitySettings > > observationViabilitySettings;
-    for ( std::string groundStation : GroundStations )
-    {
-        observationViabilitySettings.push_back( std::make_shared< ObservationViabilitySettings >(
-                minimum_elevation_angle, std::make_pair( "Earth", groundStation ), "",
-                unit_conversions::convertDegreesToRadians( 15.0 ) ) );
-        observationViabilitySettings.push_back( std::make_shared<ObservationViabilitySettings>(
-                body_occultation,
-                std::make_pair(groundStation, spacecraftName),
-                "Mars",
-                TUDAT_NAN
-        ));
-    }
-    std::cout<<"Observation viability settings created"<<std::endl;
-
-    std::vector< std::shared_ptr< ObservationViabilityCalculator > > viabilityCalculators;
-    for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
-         linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
-    {
-        ObservableType currentObservable = linkEndIterator->first;
-
-        std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
-        for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
-        {
-            std::vector< std::shared_ptr< ObservationViabilityCalculator > > calculators =
-                    createObservationViabilityCalculators(bodies, currentLinkEndsList.at(i), currentObservable, observationViabilitySettings);
-            viabilityCalculators.insert(viabilityCalculators.end(), calculators.begin(), calculators.end());
-        }
-    }
-    std::cout<<"Observation viability calculator created"<<std::endl;
-        // Define the noise functions map with the required type
-    std::map< ObservableType, std::function< Eigen::VectorXd( const double ) > > noiseFunctions;
 
 // Create the noise functions that return Eigen::VectorXd
 
@@ -933,62 +1417,11 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     //             return result;
     //         };
 
-        noiseFunctions[ two_way_doppler ] =
-           [=](const double input) -> Eigen::VectorXd {
-                   // Call the original function that returns a double
-                   double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
-                           createBoostContinuousRandomVariableGeneratorFunction(
-                                   tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
-                           ), input
-                   );
-                   // Convert the double to Eigen::VectorXd
-                   Eigen::VectorXd result(1);
-                   result(0) = noiseValue;
-                   return result;
-        };
 
 
-    std::cout<<"noise functions created"<<std::endl;
-        Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
-            parametersToEstimate->template getFullParameterValues< double >( );
 
-        std::vector< std::shared_ptr< ObservationSimulationSettings< double > > > measurementSimulationInput;
-        for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
-             linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
-        {
-                ObservableType currentObservable = linkEndIterator->first;
-                std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
-                //std::function< double( const double ) > noiseFunction = noiseFunctions[currentObservable];
-                for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
-                {
-                        measurementSimulationInput.push_back(
-                                std::make_shared< TabulatedObservationSimulationSettings< > >(
-                                        currentObservable, currentLinkEndsList[ i ], observationTimesList, receiver, observationViabilitySettings, noiseFunctions[currentObservable]) );
-                }
-        }
 
-        // Simulate observations.
-        std::shared_ptr< ObservationCollection< > > observationsAndTimes = simulateObservations< double, double >(
-                measurementSimulationInput, orbitDeterminationManager.getObservationSimulators( ), bodies );
-        std::cout<<"observations and times created"<<std::endl;
 
-        Eigen::Matrix< double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
-        int numberOfParameters = initialParameterEstimate.rows( );
-        std::cout<<"number of parameters: "<<numberOfParameters<<std::endl;
-        // Perturb initial states
-        // for( unsigned int i = 0; i < integrationArcStartTimes.size( ); i++ )
-        // {
-        //         initialParameterEstimate[ 0 + 6 * i ] += perturbPos;
-        //         initialParameterEstimate[ 1 + 6 * i ] += perturbPos;
-        //         initialParameterEstimate[ 2 + 6 * i ] += perturbPos;
-        //         initialParameterEstimate[ 3 + 6 * i ] += perturbVel;
-        //         initialParameterEstimate[ 4 + 6 * i ] += perturbVel;
-        //         initialParameterEstimate[ 5 + 6 * i ] += perturbVel;
-        // }
-        //
-        // std::cout<<"initial parameters perturbed"<<std::endl;
-        //parametersToEstimate->resetParameterValues( initialParameterEstimate );
-        printEstimatableParameterEntries( parametersToEstimate );
         // set a priori to the drag coefficients
     //const int DIAGONALS = numberOfIntegrationArcs*6;
     //double aprioriuncertainty =1.0/(0.1*0.1);
@@ -1003,6 +1436,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     //print matrix
     //std::cout<<matrix<<std::endl;
         // retrieve simulate observations
+/*
         std::ofstream outputfile1(saveDirectory + "concatenatedlinkedId-stationNames-Observations" + fileTag + ".txt");
         outputfile1 << std::setprecision(17);
         std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
@@ -1076,357 +1510,15 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 }
         }
         outputFile.close();
-
-        // Create a 2D vector (matrix) filled with zeros
-
-        const int DIAGONALS = numberOfIntegrationArcs*6 + numberOfIntegrationArcs;
-        Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-        //int remainingParametersForDrag = numberOfParameters - DIAGONALS - cnmErrors.size() - snmErrors.size() - 29;
+*/
 
 
-	double aprioriuncertainty =1.0/(10*10);
-        for (int i = numberOfIntegrationArcs*6; i < DIAGONALS; ++i) {
-                matrix(i,i) = aprioriuncertainty;
-        }
-        const std::string filenameGrav = "/home/ralkahal/nnew-tudat-tests/jgmro_120d_sha.tab"; // Replace with your file path
-        std::vector<GravityCoefficient> coefficients;
-        // Filter and extract errors up to degree and order 8
-        int maxDegree = 18;
-        int minDegree = 2;
-        std::vector<double> cnmErrors;
-        std::vector<double> snmErrors;
 
-        try {
-                // Load the gravity field file
-                loadGravityFieldFile(filenameGrav, coefficients);
-
-                extractErrorsWithinRange(coefficients, minDegree, maxDegree, cnmErrors, snmErrors);
-                std::cout<<"size of Cnm errors: " << cnmErrors.size() << std::endl;
-                std::cout<<"size of Snm errors: " << snmErrors.size() << std::endl;
-                std::cout<<DIAGONALS<<std::endl;
-
-                // Print the extracted errors
-                // Fill the matrix with the values of the diagonal
-                for (int i = 0; i < cnmErrors.size(); ++i) {
-                        matrix(i+DIAGONALS,i+DIAGONALS) = 1.0/(cnmErrors[i]*cnmErrors[i]);
-                }
-                std::cout<<"matrix filled with Cnm errors size: "<< cnmErrors.size()+DIAGONALS <<std::endl;
-                for (int i = 0; i < snmErrors.size(); ++i) {
-                        matrix(i+DIAGONALS+cnmErrors.size(),i+DIAGONALS+cnmErrors.size()) = 1.0/(snmErrors[i]*snmErrors[i]);
-                }
-        } catch (const std::exception& e) {
-                std::cerr << "Error: " << e.what() << std::endl;
-                exit(1);
-        }
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+3, DIAGONALS+cnmErrors.size()+snmErrors.size()+3) = 1.0/(0.011E-09*0.011E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+4, DIAGONALS+cnmErrors.size()+snmErrors.size()+4) = 1.0/(0.101E-10*0.101E-10);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+5, DIAGONALS+cnmErrors.size()+snmErrors.size()+5) = 1.0/(0.101E-10*0.101E-10);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+6, DIAGONALS+cnmErrors.size()+snmErrors.size()+6) = 1.0/(0.010E-09*0.010E-09);
-	matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+7, DIAGONALS+cnmErrors.size()+snmErrors.size()+7) = 1.0/(0.010E-09*0.010E-09);
-
-	matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+8, DIAGONALS+cnmErrors.size()+snmErrors.size()+8) = 1.0/(0.016E-09*0.016E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+9, DIAGONALS+cnmErrors.size()+snmErrors.size()+9) = 1.0/(0.016E-09*0.016E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+10, DIAGONALS+cnmErrors.size()+snmErrors.size()+10) = 1.0/(0.011E-09*0.011E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+11, DIAGONALS+cnmErrors.size()+snmErrors.size()+11) = 1.0/(0.011E-09*0.011E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+12, DIAGONALS+cnmErrors.size()+snmErrors.size()+12) = 1.0/(0.101E-10*0.101E-10);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+13, DIAGONALS+cnmErrors.size()+snmErrors.size()+13) = 1.0/(0.101E-10*0.101E-10);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+14, DIAGONALS+cnmErrors.size()+snmErrors.size()+14) = 1.0/(0.010E-09*0.010E-09);
-	matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+15, DIAGONALS+cnmErrors.size()+snmErrors.size()+15) = 1.0/(0.010E-09*0.010E-09);
-
-	matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+16, DIAGONALS+cnmErrors.size()+snmErrors.size()+16) = 1.0/(0.016E-09*0.016E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+17, DIAGONALS+cnmErrors.size()+snmErrors.size()+17) = 1.0/(0.016E-09*0.016E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+18, DIAGONALS+cnmErrors.size()+snmErrors.size()+18) = 1.0/(0.011E-09*0.011E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+19, DIAGONALS+cnmErrors.size()+snmErrors.size()+19) = 1.0/(0.011E-09*0.011E-09);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+20, DIAGONALS+cnmErrors.size()+snmErrors.size()+20) = 1.0/(0.101E-10*0.101E-10);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+21, DIAGONALS+cnmErrors.size()+snmErrors.size()+21) = 1.0/(0.101E-10*0.101E-10);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+22, DIAGONALS+cnmErrors.size()+snmErrors.size()+22) = 1.0/(0.010E-09*0.010E-09);
-	matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+23, DIAGONALS+cnmErrors.size()+snmErrors.size()+23) = 1.0/(0.010E-09*0.010E-09);
-
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;///(0.1E-19*0.1E-19);
-	matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;///(0.1E-19*0.1E-19);
-
-        std::cout<<"matrix filled with time varying errors size: "<< snmErrors.size()+DIAGONALS+cnmErrors.size()+28 <<std::endl;
-        std::cout<<"matrix size: "<<matrix.size()<<std::endl;
-        std::cout<<"what is remaining" << numberOfParameters - DIAGONALS - cnmErrors.size() - snmErrors.size() - 29 <<std::endl;
-
-        
-                // Fill the matrix with the values of the diagonal
-        // Fill the uncertainty of the static cosine coefficients
-        // matrix(numberOfIntegrationArcs*6,numberOfIntegrationArcs*6) = 1.0/(0.1260320626072000E-09*0.1260320626072000E-09);
-        // matrix(numberOfIntegrationArcs*6+1,numberOfIntegrationArcs*6+1) = 1.0/( 0.5456693544801000E-10* 0.5456693544801000E-10);
-        // matrix(numberOfIntegrationArcs*6+2,numberOfIntegrationArcs*6+2) = 1.0/ (0.5053988823546000E-10* 0.5053988823546000E-10);
-        // matrix(numberOfIntegrationArcs*6+3,numberOfIntegrationArcs*6+3) = 1.0/(0.9343820058712000E-10*0.9343820058712000E-10);
-        // matrix(numberOfIntegrationArcs*6+4,numberOfIntegrationArcs*6+4) = 1.0/(0.5512844614135000E-10*0.5512844614135000E-10);
-        // matrix(numberOfIntegrationArcs*6+5,numberOfIntegrationArcs*6+5) = 1.0/(0.4736610215831000E-10*0.4736610215831000E-10);
-        // matrix(numberOfIntegrationArcs*6+6,numberOfIntegrationArcs*6+6) = 1.0/(0.4361838264330000E-10*0.4361838264330000E-10);
-        // matrix(numberOfIntegrationArcs*6+7,numberOfIntegrationArcs*6+7) = 1.0/(0.1010005343691000E-09*0.1010005343691000E-09);
-        // matrix(numberOfIntegrationArcs*6+8,numberOfIntegrationArcs*6+8) = 1.0/(0.6765599578359000E-10*0.6765599578359000E-10);
-
-        //matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.1260320626072000E-09*0.1260320626072000E-09);
-        // print matrix
-        //std::cout<<matrix<<std::endl;
-    std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
-            std::make_shared< CovarianceAnalysisInput< double, double > >(
-                    observationsAndTimes,matrix );
-    std::cout<<"covariance input created"<<std::endl;
-    std::map< observation_models::ObservableType, double > weightPerObservable;
-    //weightPerObservable[ one_way_doppler ] = std::pow(oneWayDopplerNoise, -2);
-    // weightPerObservable[ one_way_range ] = std::pow(rangeNoise, -2);
-    weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
-
-    covarianceInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
-
-
-    std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
-            covarianceInput );
-    std::cout<<"covariance output created"<<std::endl;
-
-        //std::ofstream fe(saveDirectory + "unnormalizedDesignMatrix" + fileTag + ".txt");
-        // Write the matrix to the file
-        //fe << std::setprecision(32) <<covarianceOutput->getUnnormalizedDesignMatrix( );
-        // Close the file
-        //fe.close();
-
-        //std::ofstream fe2(saveDirectory + "normalizedDesignMatrix" + fileTag + ".txt");
-        // Write the matrix to the file
-        //fe2 << covarianceOutput->getNormalizedDesignMatrix( );
-        // Close the file
-        //fe2.close();
-
-        //std::ofstream fe3(saveDirectory + "weightsMatrixDiagonal" + fileTag + ".txt");
-        // Write the matrix to the file
-        //fe3 <<  std::setprecision(32) <<covarianceOutput->weightsMatrixDiagonal_;
-        // Close the file
-        //fe3.close();
-
-        //std::ofstream fein(saveDirectory + "inverseUnormalizedCovarianceMatrix_" +  fileTag + ".txt");
-        //fein <<  std::setprecision(32) <<covarianceOutput->getUnnormalizedInverseCovarianceMatrix( );
-        //fein.close();
-
-        std::ofstream fean(saveDirectory + "inverseNormalizedCovarianceMatrix_" +  fileTag + ".txt");
-        fean <<  std::setprecision(32) <<covarianceOutput->getNormalizedInverseCovarianceMatrix( );
-        fean.close();
-        std::ofstream fe4(saveDirectory + "normalizedCovarianceMatrix" + fileTag + ".txt");
-        // Write the matrix to the file
-        fe4 << covarianceOutput->normalizedCovarianceMatrix_;
-        // Close the file
-        fe4.close();
-
-        std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal" + fileTag + ".txt");
-         //Write the matrix to the file
-        fe5 << covarianceOutput->designMatrixTransformationDiagonal_;
-         //Close the file
-        fe5.close();
-
-        //Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
-        //std::ofstream file10 (saveDirectory + "correlationMatrix_" + fileTag + ".txt");
-        //file10 << std::setprecision(32) << correlationMatrix ;
-        //file10.close( );
-
-        Eigen::MatrixXd covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );
-        std::ofstream file11 (saveDirectory + "conCovarianceMatrix_" + fileTag + ".txt");
-        file11 << std::setprecision(32) << covarianceMatrix ;
-        file11.close( );
-
-        Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = covarianceOutput->getFormalErrorVector( );
-        //std::cout<<"formal error: "<<covarianceOutput->getFormalErrorVector( ).transpose( )<<std::endl;
-        std::ofstream file12 (saveDirectory + "FormalError_" + fileTag + ".txt");
-        file12 << std::setprecision(32) << FormalError ;
-        file12.close( );
-
-    // Perform estimation
-        if (performEst) {
-		    // Define estimation input
-	    std::shared_ptr< EstimationInput< double, double  > > estimationInput =
-            std::make_shared< EstimationInput< double, double > >(
-                    observationsAndTimes,
-                    Eigen::MatrixXd::Zero(0,0),
-                    std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
-	    // Call the function with reintegrateVariationalEquations set to true
-	    estimationInput->defineEstimationSettings(
-            true,  // reintegrateEquationsOnFirstIteration
-            true,  // reintegrateVariationalEquations
-            true,  // saveDesignMatrix
-            true,  // printOutput
-            true,  // saveResidualsAndParametersFromEachIteration
-            true, // saveStateHistoryForEachIteration
-            1.0E8, // limitConditionNumberForWarning
-            true   // conditionNumberWarningEachIteration
-		);
-                std::shared_ptr< EstimationOutput< double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
-                        estimationInput );
-                std::cout<<"estimation performed"<<std::endl;
-
-                Eigen::Matrix< double, Eigen::Dynamic, 1 > finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
-
-
-                // retrieve simulate observations
-                std::ofstream outputfile1(saveDirectory + "concatenatedlinkedIdnames" + fileTag + ".txt");
-                outputfile1 << std::setprecision(17);
-                std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
-                std::vector< double > concatenatedObservationTimes = observationsAndTimes->getConcatenatedTimeVector();
-                Eigen::Matrix< double, Eigen::Dynamic, 1 > observationVector = observationsAndTimes->getObservationVector();
-                std::vector< LinkEnds >  concatenatedLinkEndIdNames = observationsAndTimes->getConcatenatedLinkEndIdNames();
-                std::cout << "Observation Times size:" << concatenatedObservationTimes.size() << std::endl;
-                std::cout << "Observation Vector size:" << concatenatedObservationTimes.size() << std::endl;
-                std::cout<<"concatenated link end ids: " << std::endl;
-                for (const auto &linkEnds : concatenatedLinkEndIdNames) {
-                        for (const auto &linkEnd : linkEnds) {
-                                outputfile1 << "Link End ID: " << linkEnd.first << std::endl;
-                                outputfile1 << "Body: " << linkEnd.second.bodyName_ << ", Point: " << linkEnd.second.stationName_ << std::endl;
-
-                        }
-                }
-                outputfile1.close();
-                // Open file to save observations and times
-                std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
-                outputFile << std::setprecision(17);
-                outputFile << "station_id,observable_type,time,observation\n";
-                std::cout<<"output file created, starting loop over the sorted observations"<<std::endl;
-
-                for (const auto &observableType: sortedObservationSets) {
-                        std::cout << "Observable type: " << observableType.first << std::endl;
-                        for (const auto &stationId: observableType.second) {
-                                std::cout << "Station ID: " << stationId.first << std::endl;
-                                for (const auto &obsSetPtr: stationId.second) {
-                                        auto time = obsSetPtr->getObservationTimes();
-                                        auto observation = obsSetPtr->getObservationsVector();
-
-                                        std::cout << "Observation time: " << time.size() << std::endl;
-                                        std::cout << "Observation: " << observation.size() << std::endl;
-                                        // Save times and observations to file
-                                        for (size_t i = 0; i < time.size(); ++i)
-                                        {
-                                                outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
-                                        }
-                                }
-                        }
-                }
-                outputFile.close();
-
-                // save true errors
-                Eigen::Matrix< double, Eigen::Dynamic, 1 > TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
-                std::cout<< "normalized design matrix:"<< std::endl;
-                // Define the output file
-                std::ofstream fe(saveDirectory + "matrix_"+ fileTag + ".csv");
-                // Write the matrix to the file
-                fe << estimationOutput->normalizedDesignMatrix_;
-                // Close the file
-                fe.close();
-
-                //std::cout<< estimationOutput->normalizedDesignMatrix_ << std::endl;
-                //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
-                std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
-                // save formal errors
-                Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = estimationOutput->getFormalErrorVector( );
-                std::cout<<"Formal error: "<<estimationOutput->getFormalErrorVector( ).transpose( )<<std::endl;
-                std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
-                        estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
-
-                std::ofstream errorFile(saveDirectory+"TrueError_"+fileTag+".txt");
-                errorFile<<std::setprecision(17);
-                errorFile<<TrueError<<std::endl;
-                errorFile.close();
-                std::ofstream formalErrorFile(saveDirectory+"FormalError_"+fileTag+".txt");
-                formalErrorFile<<std::setprecision(17);
-                formalErrorFile<<FormalError<<std::endl;
-                formalErrorFile.close();
-
-                std::cout<<"True and formal errors saved"<<std::endl;
-
-                // retrieve residuals
-                Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
-                Eigen::Matrix< double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
-
-                Eigen::MatrixXd residualsWithTime;
-                residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
-                residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
-
-                for ( unsigned int i = 0; i < observationVector.size( ); ++i )
-                {
-                        residualsWithTime( i, 0 ) = static_cast< Time >( concatenatedObservationTimes.at( i )
-                        ).getSeconds< long double >();
-                }
-
-                std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
-                file << std::setprecision( 17 ) << residualsWithTime;
-                file.close();
-
-                std::cout<<"residuals saved"<<std::endl;
-
-                // Retrieve estimated state history
-                // Retrieve the best iteration simulation results
-                //std::shared_ptr< propagators::SimulationResults< long double, double > > postFitSimulationResults =
-                //        estimationOutput->getBestIterationSimulationResults( );
-                // parametersToEstimate->resetParameterValues(estimationOutput->parameterHistory_.at(estimationOutput->bestIteration_));
-                //finalParameters = parametersToEstimate->template getFullParameterValues< double >( );
-
-                std::shared_ptr<tudat::propagators::SimulationResults<double, double>> bestIterationOutput = estimationOutput->simulationResultsPerIteration_.back();//estimationOutput->bestIteration_ );
-                //std::cout << "Type of bestIterationOutput: " << typeid(*bestIterationOutput).name() << std::endl;
-
-                auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, double, double>>(bestIterationOutput);
-                auto singleArcResults = multiArcResults->getSingleArcResults();
-
-                // std::vector< std::shared_ptr< propagators::MultiArcSimulationResults<SingleArcSimulationResults, double, Time >>> bestIterationSimulationResultsPerArc = bestIterationOutput->getSingleArcResults();
-
-                std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
-                std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedDependentVariablesPostFitDynamic;
-                std::map< double, Eigen::Matrix< double, 6, 1 > > concatenatedStateHistoryPostFit;
-                std::cout<<singleArcResults.size()<<std::endl;
-                for ( unsigned int arcIndex = 0; arcIndex < singleArcResults.size(); ++arcIndex )
-                {
-                        // Retrieve the best iteration simulation results for the current arc
-                        //std::shared_ptr< propagators::SimulationResults< long double, Time > > bestIterationSimulationResults =
-                        //        singleArcResults[arcIndex];
-                        //singleArcResults.push_back( bestIterationSimulationResults );
-
-                        // Retrieve the state history for the current arc
-                        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
-                        // Retrieve the dependent variables history for the current arc
-                        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcDependentVariablesPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getDependentVariableHistory( );
-                        // Retrieve the state history for the current arc
-                        //  std::map< Time, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic =
-                        //        std::dynamic_pointer_cast< SingleArcVariationalSimulationResults< long double, Time > >(
-                        //               bestIterationSimulationResults )->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
-
-                        // Append the state history to the concatenated map
-                        for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
-                        {
-                                concatenatedStateHistoryPostFitDynamic[ it->first ] = it->second;
-                                //std::cout<<"concatenated state history post fit dynamic: "<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
-
-                        }
-                        // Append the dependent variables history to the concatenated map
-                        for ( auto it = arcDependentVariablesPostFitDynamic.begin(); it != arcDependentVariablesPostFitDynamic.end(); ++it )
-                        {
-                                concatenatedDependentVariablesPostFitDynamic[ it->first ] = it->second;
-                        }
-                }
-
-                // Convert the dynamic state history to fixed size
-                for ( auto it = concatenatedStateHistoryPostFitDynamic.begin(); it != concatenatedStateHistoryPostFitDynamic.end(); ++it )
-                {
-                        concatenatedStateHistoryPostFit[ it->first ] = it->second;
-                        //std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
-                }
-                writeDataMapToTextFile( concatenatedStateHistoryPostFit, "stateHistoryPropagatedPostFit_" + fileTag + ".txt", saveDirectory,
-                                        "", 18, 18 );
-
-                // Write dependent variables to file
-                writeDataMapToTextFile( concatenatedDependentVariablesPostFitDynamic, "dependentVariablesPropagatedPostFit_" + fileTag + ".txt", saveDirectory,
-                                        "", 18, 18 );
-        }
 }
 int main() {
         int iterationNumber = 5;
         std::vector<int> arcLengths= {5};
-        std::vector<int> number_of_arcs= {210};//,72,137,210};
+        std::vector<int> number_of_arcs= {12};//{210,283,356};
         std::vector<double> hoursperday = {10.0};
         std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
@@ -1437,15 +1529,16 @@ int main() {
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
         std::vector<int> intperturbVel = {0001};
-        std::vector<int> totalDuration = {1050};//,360,685,1050};
-        std::vector<double> finalTimes= {86400.0*1050.0};//, 86400.0*360.0, 86400.0*685.0, 86400.0*1050.0};
+        std::vector<int> totalDuration = {60}; //{1050,1415,1780};
+        std::vector<double> finalTimes= {86400.0*60.0}; //{86400.0*1050.0,86400.0*1415.0,86400.0*1780.0};
         bool performEst = false;
+	bool filterArcTimes = false;
         for (int i = 0; i<arcLengths.size();i++) {
                 for (int hours = 0; hours<hoursperday.size();hours++) {
                         for (int initialTime = 0; initialTime<finalTimes.size(); initialTime++) {
                                 double finalTime = initialTimes[initialTime] + finalTimes.at(initialTime);
                                 for (int intperturb = 0; intperturb<perturbPos.size(); intperturb++) {
-                                        arcLengthRuns( hoursperday[hours],  initialTimes[0],  finalTimes.at(initialTime), arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  totalDuration.at(initialTime),  startTime[0],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst);
+                                        arcLengthRuns( hoursperday[hours],  initialTimes[0],  finalTimes.at(initialTime), arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  totalDuration.at(initialTime),  startTime[0],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst,filterArcTimes);
 
                                 }
 

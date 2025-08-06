@@ -1,7 +1,4 @@
-//
-// Created by Riva Alkahal on 17/10/2024.
-//
-//
+// last run on 2024-10-17
 // Created by Riva Alkahal on 09/10/2024.
 //
 //
@@ -56,26 +53,109 @@
 
 #include "tudat/astro/ground_stations/transmittingFrequencies.h"
 
-bool tryConvertToDouble(const std::string& str, double& value) {
-    try {
-        size_t idx;
-        value = std::stod(str, &idx);
-        if (idx != str.size()) {
-            // If the entire string was not used in conversion, it's an error
-            return false;
+void loadGravityFieldFile(const std::string& filename,
+                          std::vector<GravityCoefficient>& coefficients) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+                throw std::runtime_error("Unable to open file: " + filename);
         }
-        return true;
-    } catch (const std::invalid_argument& e) {
-        return false;
-    } catch (const std::out_of_range& e) {
-        return false;
-    }
+        // Skip the header line
+        std::string header;
+        if (!std::getline(file, header)) {
+                throw std::runtime_error("File is empty or header is missing.");
+        }
+
+        // Read coefficients
+        std::string line;
+        while (std::getline(file, line)) {
+                std::replace(line.begin(), line.end(), ',', ' ');
+
+                std::istringstream lineStream(line);
+                GravityCoefficient coeff;
+
+                lineStream >> coeff.degree >> coeff.order
+                           >> coeff.Cnm >> coeff.Snm
+                           >> coeff.CnmErr >> coeff.SnmErr;
+
+                if (lineStream.fail()) {
+                        throw std::runtime_error("File format is incorrect in the coefficients section.");
+                }
+
+                coefficients.push_back(coeff);
+        }
+
+        file.close();
 }
 
-void trim(std::string& s) {
-    // Trim leading and trailing spaces
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
+
+void extractErrorsWithinRange(
+    const std::vector<GravityCoefficient>& coefficients,
+    int minDegree, int maxDegree,
+    std::vector<double>& cnmErrors,
+    std::vector<double>& snmErrors
+) {
+        for (const auto& coeff : coefficients) {
+                if (coeff.degree >= minDegree && coeff.degree <= maxDegree && coeff.order <= maxDegree) {
+                        cnmErrors.push_back(coeff.CnmErr);
+                        if (coeff.SnmErr != 0.0) {
+                                snmErrors.push_back(coeff.SnmErr);
+                        }
+                }
+        }
+}
+
+// Function to compute the cross product of position and velocity and store it in a map
+std::map<double, Eigen::VectorXd> computeCrossProduct(const std::map<double, Eigen::VectorXd>& stateHistory) {
+        std::map<double, Eigen::VectorXd> crossProductMap;
+
+        for (const auto& [time, stateVector] : stateHistory) {
+                // Ensure the state vector has exactly 6 elements (3 for position, 3 for velocity)
+                if (stateVector.size() == 6) {
+                        // Extract position and velocity vectors
+                        Eigen::Vector3d position = stateVector.head(3);
+                        Eigen::Vector3d velocity = stateVector.tail(3);
+
+                        // Compute the cross product
+                        Eigen::Vector3d crossProduct = position.cross(velocity);
+
+                        // Store the result in the map with the time as the key
+                        crossProductMap[time] = crossProduct;
+                } else {
+                        std::cerr << "Warning: State vector at time " << time << " does not have exactly 6 elements." << std::endl;
+                        crossProductMap[time] = Eigen::Vector3d::Zero();  // Placeholder if state vector is not size 6
+                }
+        }
+
+        return crossProductMap;
+}
+// Example function to compute dot products for a map of vectors
+std::map<double, double> computeDotProductMap(const std::map<double, Eigen::VectorXd>& vectorMap1, const std::map<double, Eigen::VectorXd>& vectorMap2) {
+        std::map<double, double> dotProductMap;
+
+        for (const auto& [time, vector1] : vectorMap1) {
+                // Ensure the time key exists in both maps
+                if (vectorMap2.find(time) != vectorMap2.end()) {
+                        const Eigen::VectorXd& vector2 = vectorMap2.at(time);
+                        // Compute the dot product
+                        dotProductMap[time] = vector1.dot(vector2);
+
+                } else {
+                        std::cerr << "Warning: Time key " << time << " not found in both maps." << std::endl;
+                }
+        }
+
+        return dotProductMap;
+}
+std::map<double, double> computeNorms(const std::map<double, Eigen::VectorXd>& relativePos) {
+        std::map<double, double> norms;
+
+        for (const auto& [key, vector] : relativePos) {
+                // Calculate the norm of the vector (last 3 columns)
+                double norm = vector.norm();
+                norms[key] = norm;
+        }
+
+        return norms;
 }
 
 int main( ) {
@@ -98,8 +178,7 @@ int main( ) {
     using namespace tudat::orbital_element_conversions;
 
     spice_interface::loadStandardSpiceKernels();
-    /*
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
+    /*spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map4.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map5.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7.bsp" );
@@ -112,51 +191,32 @@ int main( ) {
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map6_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map7_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_map8_ipng_mgs95j.bsp" );
-
-
-    //extended mission phases
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext8.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9.bsp" );
-
-
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext5_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext6_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext7_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext8_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/Users/ralkahal/OneDrive - Delft University of Technology/esitmate/sod_assignments/mgs_ext9_ipng_mgs95j.bsp" );
 */
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
-
+    /*spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map3_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
-
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9.bsp" );
-
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8_ipng_mgs95j.bsp" );
-    spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9_ipng_mgs95j.bsp" );
+*/
+    //std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
+    std::string saveDirectory = "/home/ralkahal/new-tudat-tests/paperTests/";
+    std::string fileTag = "observspice-newmass+matrix-RK78-60s-multiarc-drag-per-arc-gravity-constrained";
 
 
-//    std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/propagateDynamics/";
-    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/propagateDynamics/";
-    std::string fileTag = "propagate10trend-RK4-1ss-5days";
-   bool startEstimate = false;
+    std::ofstream outFile(saveDirectory + "output_" + fileTag + ".txt");
+    if (!outFile) {
+        std::cerr << "Error: file could not be opened" << std::endl;
+        return 1;
+    }
+    std::streambuf* originalCoutBuffer = std::cout.rdbuf();
+    std::cout.rdbuf(outFile.rdbuf());
+
     // set input options
     double epehemeridesTimeStep = 60.0;
     bool useInterpolatedEphemerides = true;
@@ -164,18 +224,20 @@ int main( ) {
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 5.0 * 86400.0;//2.0E4;
     std::string dragEst = "per-rev";//"per-rev";
-    double ndays = 2.0;
+    std::string empEst = "per-arc";
+
+    double ndays = 3.0;
     double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
-    int iterationNumber = 3;
+    int iterationNumber = 5;
     //const double gravitationalParameter = 4.2828378e13;
     //const double planetaryRadius = 3389.5E3;
 
     double oneWayDopplerNoise = 0.0001;
     double twoWayDopplerNoise = 0.0001;
     double rangeNoise = 0.0001;
-    Time initialEphemerisTime = Time(0.0);
-    Time finalEphemerisTime = Time( 86400.0 * 5.0);
+    Time initialEphemerisTime = Time(86400.0 * 0.0);//Time(0.0);
+    Time finalEphemerisTime = Time(86400.0 * 60.0);
     double totalDuration = finalEphemerisTime - initialEphemerisTime;
     std::cout << "Total duration: " << totalDuration << std::endl;
 
@@ -202,7 +264,7 @@ int main( ) {
 
     bodySettings.at("Earth")->groundStationSettings = getDsnStationSettings();
 
-//    std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
+    //std::string filename = "/Users/ralkahal/OneDrive - Delft University of Technology/PhD/Programs/atmodensitydtm/dtm_mars";;
     std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
     bodySettings.at("Mars")->atmosphereSettings = marsDtmAtmosphereSettings(filename, 3378.0E3);
 
@@ -224,103 +286,6 @@ int main( ) {
     bodySettings.at(spacecraftName)->ephemerisSettings->resetMakeMultiArcEphemeris(true);
 
     // Set gravity field variations
-    std::map<double,  Eigen::MatrixXd> cosineCoefficientCorrections;
-    std::map<double,  Eigen::MatrixXd> sineCoefficientCorrections;
-    // Get gravity field variations from file (surface pressure)
-/*    std::string filename2 = "/Users/ralkahal/Downloads/timeseries_agrav_mgs.out";
-    std::ifstream inputFile(filename2);
-    if (!inputFile.is_open()) {
-        std::cerr << "Error opening file: " << filename2 << std::endl;
-        return 1;
-    }
-    std::string line;
-    std::vector<std::vector<double> > data;
-    int i = 0;
-
-    while (std::getline(inputFile,line)) {
-
-        trim(line);
-        if (line.empty()) {
-            continue;
-        }
-
-        data.push_back(std::vector<double>());
-        std::istringstream ss(line);
-        double value;
-        while (ss >> value)
-        {
-            data[i].push_back(value); //enter data from text file into array
-            //std::cout<< value <<std::endl;
-        }
-        std::cout<< data[i].back() <<std::endl;
-        double time = data[i][0];
-        double C20 = data[i][1];
-        double C30 = data[i][2];
-        double C40 = data[i][3];
-        double C50 = data[i][4];
-
-        //line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
-        //line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-
-        //std::string timeStr, C20Str, C30Str, C40Str, C50Str;
-        //double time, C20, C30, C40, C50;
-        //std::cout<< timeStr << ", C20Str=" << C20Str
-        //  << ", C30Str=" << C30Str << ", C40Str=" << C40Str << ", C50Str=" << C50Str << std::endl;
-        //std::cout<< time <<std::endl;
-        //std::cout<< C20 <<std::endl;
-
-        // Use std::getline to extract each value, specifying '\t' as the delimiter for tab-separated values
-        /*if (!std::getline(ss, timeStr, ' ') ||
-            !std::getline(ss, C20Str, ' ') ||
-            !std::getline(ss, C30Str, ' ') ||
-            !std::getline(ss, C40Str, ' ') ||
-            !std::getline(ss, C50Str, ' ')) {
-            std::cerr << "Parsing error at line " << ": " << line << std::endl;
-            continue;
-            }
-
-        trim(timeStr);
-        trim(C20Str);
-        trim(C30Str);
-        trim(C40Str);
-        trim(C50Str);
-
-
-        // Convert strings to doubles
-        if (!tryConvertToDouble(timeStr, time) ||
-            !tryConvertToDouble(C20Str, C20) ||
-            !tryConvertToDouble(C30Str, C30) ||
-            !tryConvertToDouble(C40Str, C40) ||
-            !tryConvertToDouble(C50Str, C50)) {
-            std::cerr << "Conversion error at line: " << line << std::endl;
-            continue;
-            }
-*/
-
-/*        //std::cout<< convertModifiedJulianDayToCalendarDate(5.1547826388888891E+04) <<std::endl;
-        //std::cout<< convertJulianDayToSecondsSinceEpoch(convertModifiedJulianDayToJulianDay(5.1547826388888891E+04)) <<std::endl;
-        // convert MJD to JD
-        double timeJD = convertModifiedJulianDayToJulianDay(time);
-        std::cout<< timeJD <<std::endl;
-        // convert JD to seconds since J2000
-        double timeSinceJ2000 = convertJulianDayToSecondsSinceEpoch(timeJD);
-        std::cout<< timeSinceJ2000 <<std::endl;
-        if (std::isnan(time) || std::isnan(C20) || std::isnan(C30) || std::isnan(C40) || std::isnan(C50)) {
-            std::cerr << "NaN value detected at line: " << line << std::endl;
-            continue; // Skip this line if any value is NaN
-        }
-
-
-        Eigen::MatrixXd coefficients(4, 1);
-        coefficients << C20, C30, C40, C50;
-        cosineCoefficientCorrections[timeSinceJ2000] = coefficients;
-
-        Eigen::MatrixXd sineCoefficients = Eigen::MatrixXd::Zero(4, 1);
-        sineCoefficientCorrections[timeSinceJ2000] = sineCoefficients;
-        i++;
-    }
-    inputFile.close();
-*/
     std::vector<std::shared_ptr<GravityFieldVariationSettings> > gravityFieldVariations;
 
     // Set solid body tide gravity field variation
@@ -336,18 +301,13 @@ int main( ) {
             std::make_shared<BasicSolidBodyGravityFieldVariationSettings>(deformingBodies, loveNumbers);
     gravityFieldVariations.push_back(singleGravityFieldVariation);
 
-//    std::shared_ptr<GravityFieldVariationSettings > tabulatedGravityFieldVariations = std::make_shared<TabulatedGravityFieldVariationSettings >(
-//                cosineCoefficientCorrections, sineCoefficientCorrections, 2, 0, std::make_shared< LagrangeInterpolatorSettings >( 8 ) );
-
-    //gravityFieldVariations.push_back(tabulatedGravityFieldVariations);
-
     // Set periodic gravity field variation
     std::vector<Eigen::MatrixXd> cosineShAmplitudesCosineTime;
     std::vector<Eigen::MatrixXd> cosineShAmplitudesSineTime;
     std::vector<Eigen::MatrixXd> sineShAmplitudesCosineTime;
     std::vector<Eigen::MatrixXd> sineShAmplitudesSineTime;
     std::vector<double> frequencies;
- cosineShAmplitudesCosineTime.push_back(
+     cosineShAmplitudesCosineTime.push_back(
             ( Eigen::MatrixXd( 4, 3 )<<2.39E-9, 0.92E-10, 0.0,
                     1.67E-9, -2.22E-10, 0.0,
                     0.85E-10, 0.0, 0.0,
@@ -399,80 +359,34 @@ int main( ) {
 
     // Set polynomial gravity field variation
     std::map<int, Eigen::MatrixXd> cosineAmplitudes;
-    cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 3 >::Zero( );
-    /*
-    cosineAmplitudes[ 1 ]( 0, 0 ) = 1.91924728977996e-11/(365*24*3600); //3years sam-b
+    cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
 
-    cosineAmplitudes[1](0,1) =-1.69215684027738e-13/(365*24*3600);
-    cosineAmplitudes[1](0,2) = 1.66459256502814e-11/(365*24*3600);
-    cosineAmplitudes[1](1,0) = 9.33898280285743e-13/(365*24*3600);
-    cosineAmplitudes[1](1,1) = 3.67913654008894e-12/(365*24*3600);
-    cosineAmplitudes[1](1,2) = 1.12986679730805e-12/(365*24*3600);
-    cosineAmplitudes[1](1,3) = 1.15599079203426e-11/(365*24*3600);
-    cosineAmplitudes[1](2,0) = -2.9036065707624e-12/(365*24*3600);
-*/
-    //scM/10
+    //nVec Root 800 km depth
+    cosineAmplitudes[ 1 ]( 0, 0 ) += -7.00583559071078e-13/(365*24*3600);
+    cosineAmplitudes[1](0,1) +=-5.44909982178362e-14/(365*24*3600);
+    cosineAmplitudes[1](0,2) += -8.31134553095663e-13/(365*24*3600);
+    cosineAmplitudes[1](1,0) += 1.15640729781333e-13/(365*24*3600);
+    cosineAmplitudes[1](1,1) += -2.61531330180095e-13/(365*24*3600);
+    cosineAmplitudes[1](1,2) += 1.02212332919433e-13/(365*24*3600);
+    cosineAmplitudes[1](1,3) += -8.00674595992919e-13/(365*24*3600);
+    cosineAmplitudes[1](2,0) += 4.32941757959663e-13/(365*24*3600);
+    cosineAmplitudes[1](2,1) += 5.98812345051549e-14/(365*24*3600);
+    cosineAmplitudes[1](2,2) += 4.4199871466477e-13/(365*24*3600);
+    cosineAmplitudes[1](2,3) += 1.25159028954031e-13/(365*24*3600);
+    cosineAmplitudes[1](2,4) += -5.3726758654485e-14/(365*24*3600);
 
-    cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-10/(365*24*3600);
-
-    cosineAmplitudes[1](0,1) +=1.83526161335626e-10/(365*24*3600);
-    cosineAmplitudes[1](0,2) += -2.29416809459079e-10/(365*24*3600);
-    cosineAmplitudes[1](1,0) += -1.96888593742833e-10/(365*24*3600);
-    cosineAmplitudes[1](1,1) += 3.64572599774489e-10/(365*24*3600);
-    cosineAmplitudes[1](1,2) += -1.99682320271527e-10/(365*24*3600);
-    //cosineAmplitudes[1](1,3) += 1.19185562092185e-09/(365*24*3600);
-    cosineAmplitudes[1](2,0) += 4.33626663660650e-10/(365*24*3600);
-
-
-    //scM/0.01
-/*
-    cosineAmplitudes[ 1 ]( 0, 0 ) += -1.73871738023640e-12/(365*24*3600);
-
-    cosineAmplitudes[1](0,1) +=1.83526161335626e-12/(365*24*3600);
-    cosineAmplitudes[1](0,2) += -2.29416809459079e-12/(365*24*3600);
-    cosineAmplitudes[1](1,0) += -1.96888593742833e-12/(365*24*3600);
-    cosineAmplitudes[1](1,1) += 3.64572599774489e-12/(365*24*3600);
-    cosineAmplitudes[1](1,2) += -1.99682320271527e-12/(365*24*3600);
-    //cosineAmplitudes[1](1,3) += 1.19185562092185e-11/(365*24*3600);
-    cosineAmplitudes[1](2,0) += 4.33626663660650e-12/(365*24*3600);
-    std::cout<<"assigned values to cosine amplitde"<<std::endl;
-*/
-    //samuelb 50years
-/*
-    cosineAmplitudes[ 1 ]( 0, 0 ) = 2.64611514298544e-10/(365*24*3600);
-
-    cosineAmplitudes[1](0,1) =-7.9324131015657e-12/(365*24*3600);
-    cosineAmplitudes[1](0,2) = 3.09051829331777e-10/(365*24*3600);
-    cosineAmplitudes[1](1,0) = 1.23467940475808e-11/(365*24*3600);
-    cosineAmplitudes[1](1,1) = 5.45964542190114e-11/(365*24*3600);
-    cosineAmplitudes[1](1,2) = 1.0859659257389e-11/(365*24*3600);
-    cosineAmplitudes[1](1,3) = 1.6671318233878e-10/(365*24*3600);
-    cosineAmplitudes[1](2,0) = -2.55988773213135e-11/(365*24*3600);
-*/
-
-
-    //cosineAmplitudes = cosineAmplitudes;
-    //stein 50 years
-    /*
-    cosineAmplitudes[1](0,0) = 6.469163469325e-09/(365*24*3600);
-    cosineAmplitudes[1](0,1) = 1.63229205379438e-10/(365*24*3600);
-    cosineAmplitudes[1](0,2) = 7.66708257544063e-09/(365*24*3600);
-    cosineAmplitudes[1](1,0) = -1.80240472010679e-10/(365*24*3600);
-    cosineAmplitudes[1](1,1) = 2.48842335218713e-09/(365*24*3600);
-    cosineAmplitudes[1](1,2) =-1.59129711509854e-10/(365*24*3600);
-    cosineAmplitudes[1](1,3) = 7.61407887767204e-09/(365*24*3600);
-    cosineAmplitudes[1](2,0) = -1.35876027631454e-09/(365*24*3600);
-    //cosineAmplitudes[ 2 ] = Eigen::Matrix< double, 3, 5 >::Zero( );
-     */
     std::map<int, Eigen::MatrixXd> sineAmplitudes;
-    //sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 3 >::Zero( );
-    /*
-    sineAmplitudes[ 1 ]( 0, 1 ) = 2.1923517483097e-12; //3years sam-b
-    sineAmplitudes[1](0,2) = 1.93032794374673e-11;
-    sineAmplitudes[1](1,1) = -9.09002230132412e-12;
-    sineAmplitudes[1](1,2) = 8.10801664003273e-13;
-    sineAmplitudes[1](1,3) = -4.02014384239032e-12;
-     */
+    sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
+    sineAmplitudes[1](0,1) +=1.25916272835878e-13/(365*24*3600);
+    sineAmplitudes[1](0,2) += -8.84999663538266e-13/(365*24*3600);
+    sineAmplitudes[1](1,1) += 6.0445217093141e-13/(365*24*3600);
+    sineAmplitudes[1](1,2) += 1.08851817438134e-13/(365*24*3600);
+    sineAmplitudes[1](1,3) += 2.88244592826493e-13/(365*24*3600);
+    sineAmplitudes[1](2,1) += -1.38365049897319e-13/(365*24*3600);
+    sineAmplitudes[1](2,2) += 4.70640224945299e-13/(365*24*3600);
+    sineAmplitudes[1](2,3) += -4.50562269498905e-14/(365*24*3600);
+    sineAmplitudes[1](2,4) += 8.5339608889136e-13/(365*24*3600);
+
     std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
             std::make_shared< PolynomialGravityFieldVariationsSettings >(
@@ -502,7 +416,7 @@ int main( ) {
     // Create aerodynamic coefficients settings
     Eigen::Vector3d customVector(1.2, 0.0, 0.0);
     std::shared_ptr<AerodynamicCoefficientSettings> aerodynamicCoefficientSettings =
-            std::make_shared<ConstantAerodynamicCoefficientSettings>(10.0, 1.2 * Eigen::Vector3d::UnitX());
+            std::make_shared<ConstantAerodynamicCoefficientSettings>(10.0, 1.2* Eigen::Vector3d::UnitX());
     bodies.at(spacecraftName)->setAerodynamicCoefficientInterface(
             createAerodynamicCoefficientInterface(aerodynamicCoefficientSettings, spacecraftName, bodies));
 
@@ -523,11 +437,11 @@ int main( ) {
     accelerationsOfVehicle["Jupiter"].push_back(pointMassGravityAcceleration());
 
     //double empiricalAccelerationNorm = 1.0E-6;
-    /*accelerationsOfVehicle[ "Mars" ].push_back( std::make_shared< EmpiricalAccelerationSettings >(
-                                                             Eigen::Vector3d::Zero( ),
-                                                             empiricalAccelerationNorm* Eigen::Vector3d::Ones( ),
-                                                             empiricalAccelerationNorm* Eigen::Vector3d::Ones( )) );
-*/
+//    accelerationsOfVehicle[ "Mars" ].push_back( std::make_shared< EmpiricalAccelerationSettings >(
+//                                                             Eigen::Vector3d::Zero( ),
+//                                                             Eigen::Vector3d::Zero( ),
+//                                                             Eigen::Vector3d::Zero( )) );
+
     accelerationMap[spacecraftName] = accelerationsOfVehicle;
 
     // Set bodies for which initial state is to be estimated and integrated.
@@ -563,24 +477,42 @@ int main( ) {
 
     double integrationStartTime = initialEphemerisTime + 120.0; //1.0E2;
     double integrationEndTime = finalEphemerisTime - 120.0 ; //1.0E2;
-    double step_size;
+    double step_size_drag;
+    double step_size_emp;
     if (dragEst == "per-rev") {
-        step_size = hoursperdaydrag * 3600;
+        step_size_drag = hoursperdaydrag * 3600;
     }
     else
     {
-        step_size = ndays * 24 * 3600;
+        step_size_drag = ndays * 24 * 3600;
     }
-    std::cout<<"step size: "<<step_size<<std::endl;
+
+    if (empEst == "per-rev") {
+        step_size_emp = hoursperdaydrag * 3600;
+    }
+    else
+    {
+        step_size_emp = ndays * 24 * 3600;
+    }
+
+    std::cout<<"step size: "<<step_size_drag<<std::endl;
     //double step_size = ndays * 24 * 3600;
     std::vector< double > initial_times_list_drag;
+    std::vector< double > initial_times_list_emp;
     // Generate the times for drag coeffs
-    for (double time = integrationStartTime + 10000 ; time < integrationEndTime + 10000; time += step_size) {
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size_drag) {
         //if (integrationEndTime-time < step_size) {
         //    break;
         //}
         initial_times_list_drag.push_back(time);
         std::cout<<"time drag: "<<time<<std::endl;
+    }
+    for (double time = integrationStartTime ; time < integrationEndTime; time += step_size_emp) {
+        //if (integrationEndTime-time < step_size) {
+        //    break;
+        //}
+        initial_times_list_emp.push_back(time);
+        //std::cout<<"time drag: "<<time<<std::endl;
     }
 
     std::cout<<"integration start time: "<<integrationStartTime<<std::endl;
@@ -632,14 +564,11 @@ int main( ) {
                             "", 18, 18 );
 
     // Define integrator settings
-   std::shared_ptr< IntegratorSettings< > > integratorSettings =
-            std::make_shared< IntegratorSettings< > >
-                    ( rungeKutta4, integrationStartTime , 1.0 );
-//    std::shared_ptr<IntegratorSettings<> >integratorSettings =
-//            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 1, CoefficientSets::rungeKutta87DormandPrince );
-
-    // std::shared_ptr<IntegratorSettings<> >integratorSettings =
-    //        std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
+    //std::shared_ptr< IntegratorSettings< > > integratorSettings =
+     //       std::make_shared< IntegratorSettings< > >
+    //                ( rungeKutta4, integrationStartTime + 600, 30.0 );
+    std::shared_ptr<IntegratorSettings<> >integratorSettings =
+            std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 60, CoefficientSets::rungeKutta87DormandPrince );
 
     std::cout<<"Integration settings created"<<std::endl;
 
@@ -673,22 +602,34 @@ int main( ) {
     std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
                 getInitialMultiArcParameterSettings< long double, double  >( multiArcPropagatorSettings, bodies, integrationArcStartTimes );
     //parameterNames.push_back( std::make_shared< EstimatableParameterSettings >( spacecraftName, radiation_pressure_coefficient ) );
-    parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, initial_times_list_drag ));
-    parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
+    parameterNames.push_back(std::make_shared< ArcWiseDragCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
+    //parameterNames.push_back(std::make_shared< ArcWiseRadiationPressureCoefficientEstimatableParameterSettings >(spacecraftName, integrationArcStartTimes ));
 
-    std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
+    /*std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
+
     empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
     empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
-    empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
+    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+    //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
 
-   // parameterNames.push_back( std::make_shared< EmpiricalAccelerationEstimatableParameterSettings >(
-    //        spacecraftName,"Mars", empiricalAccelerationComponents ) );
-
+    parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
+            spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_drag ) );
+*/
     std::shared_ptr< estimatable_parameters::EstimatableParameterSet< long double > > parametersToEstimate =
-            createParametersToEstimate< long double, double >( parameterNames, bodies );
+            createParametersToEstimate< long double, double >( parameterNames, bodies, multiArcPropagatorSettings );
+    printEstimatableParameterEntries( parametersToEstimate );
+
 
     std::cout<<"parameters to estimate created"<<std::endl;
 
@@ -711,8 +652,8 @@ int main( ) {
 
 
     // Retrieve state history
-    std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
-    for ( Time t : observationTimes )
+    //std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > propagatedStateHistory;
+    /*for ( Time t : observationTimes )
     {
         propagatedStateHistory[ t.getSeconds< long double >() ] =
                 bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
@@ -723,7 +664,7 @@ int main( ) {
                             "", 18, 18 );
     writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + fileTag + ".txt", saveDirectory,
                             "", 18, 18 );
-
+*/
 
 
     std::vector< std::shared_ptr< SingleObservationSet< long double, double > > > observationSetList;
@@ -735,40 +676,54 @@ int main( ) {
 
     std::cout<<"observations and times created"<<std::endl;
 
-
-        // set a priori to the drag coefficients
-    const int DIAGONALS = numberOfIntegrationArcs*6 + 1;
-    double aprioriuncertainty =1.0/(0.001*0.001);
-
-    Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
-                parametersToEstimate->template getFullParameterValues< double >( );
+    // set a priori to the drag coefficients
+    const int DIAGONALS = numberOfIntegrationArcs*6;
+    //double aprioriuncertainty =1.0/(10);
+    double aprioriuncertainty =1.0/(10*10);
+    //double aprioriuncertainty = 1.0;
+    Eigen::Matrix< long double, Eigen::Dynamic, 1 > initialParameterEstimate =
+            parametersToEstimate->template getFullParameterValues< long double >( );
     int numberOfParameters = initialParameterEstimate.rows( );
-        // Create a 2D vector (matrix) filled with zeros
+    Eigen::Matrix< long double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
+    std::cout<< DIAGONALS + numberOfIntegrationArcs << std::endl;
+    // Create a 2D vector (matrix) filled with zeros
     Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-        // Fill the matrix with the values of the diagonal
-    for (int i = DIAGONALS; i < numberOfParameters - numberOfIntegrationArcs ; ++i) {
+    // Fill the matrix with the values of the diagonal
+    for (int i = DIAGONALS; i < DIAGONALS + numberOfIntegrationArcs ; ++i) {
         matrix(i,i) = aprioriuncertainty;
     }
-        // Define estimation input
+/*
+    double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
+    for (int i = DIAGONALS + numberOfIntegrationArcs; i < numberOfParameters - 3*(initial_times_list_drag.size()) ; ++i) {
+        matrix(i,i) = aprioriuncertainty1;
+    }
+    double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
+    for (int i = numberOfParameters - 3*(initial_times_list_drag.size()); i < numberOfParameters; ++i) {
+        matrix(i,i) = aprioriuncertainty2;
+    }
+*/  
+// Define estimation input
     std::shared_ptr< EstimationInput< long double, double  > > estimationInput =
-        std::make_shared< EstimationInput< long double, double > >(
-                        observedObservationCollection,
-                        matrix,
-                        std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
-        // Call the function with reintegrateVariationalEquations set to true
+            std::make_shared< EstimationInput< long double, double > >(
+                    observedObservationCollection,
+                    matrix,
+                    std::make_shared< EstimationConvergenceChecker >( iterationNumber ) );
+    // Call the function with reintegrateVariationalEquations set to true
     estimationInput->defineEstimationSettings(
-                true,  // reintegrateEquationsOnFirstIteration
-                true,  // reintegrateVariationalEquations
-                true,  // saveDesignMatrix
-                true,  // printOutput
-                true,  // saveResidualsAndParametersFromEachIteration
-                true, // saveStateHistoryForEachIteration
-                1.0E8, // limitConditionNumberForWarning
-                true );  // conditionNumberWarningEachIteration);
+            true,  // reintegrateEquationsOnFirstIteration
+            true,  // reintegrateVariationalEquations
+            true,  // saveDesignMatrix
+            true,  // printOutput
+            true,  // saveResidualsAndParametersFromEachIteration
+            true, // saveStateHistoryForEachIteration
+            1.0E8, // limitConditionNumberForWarning
+            true   // conditionNumberWarningEachIteration
+    );
 
-    /*std::shared_ptr< CovarianceAnalysisInput< long double, double > > covarianceInput =
+
+    std::shared_ptr< CovarianceAnalysisInput< long double, double > > covarianceInput =
         std::make_shared< CovarianceAnalysisInput< long double, double > >(
-                observedObservationCollection);
+                observedObservationCollection,matrix);
 
     covarianceInput->getConsiderCovariance();
     covarianceInput->defineCovarianceSettings(true, false);
@@ -778,116 +733,166 @@ int main( ) {
     std::shared_ptr< CovarianceAnalysisOutput< long double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
             covarianceInput );
 
-    std::cout<<"covariance output created"<<std::endl;
-
     Eigen::MatrixXd propcorrelationMatrix = covarianceOutput->getCorrelationMatrix( );
 
     std::ofstream file11(saveDirectory + "propcorrelations_" + fileTag + ".txt");
     file11 << std::setprecision( 21 ) << propcorrelationMatrix ;
     file11.close();
-*/
-    if (startEstimate) {
-        // Perform estimation
-        std::shared_ptr< EstimationOutput< long double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
-                    estimationInput );
 
-        int itr_number = 0;
-        for (const auto& iterationOutput : estimationOutput->getSimulationResults()){ //simulationResultsPerIteration_) {
-            auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, long double, double>>(iterationOutput);
-            auto singleArcResults = multiArcResults->getSingleArcResults();
-            std::map< double, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
-            std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedDependentVariablesPostFitDynamic;
-            std::map< double, Eigen::Matrix< long double, 6, 1 > > concatenatedStateHistoryPostFit;
-            //std::cout<<singleArcResults.size()<<std::endl;
-            for ( unsigned int arcIndex = 0; arcIndex < singleArcResults.size(); ++arcIndex )
-            {
-                // Retrieve the state history for the current arc
-                std::map< double, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
+    std::cout<<"covariance output created"<<std::endl;
 
-                // Retrieve the dependent variables history for the current arc
-                std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcDependentVariablesPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getDependentVariableHistory( );
-                // Append the state history to the concatenated map
-                for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
-                {
-                    concatenatedStateHistoryPostFitDynamic[ it->first ] = it->second;
-                    //std::cout<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
-                }
-                // Append the dependent variables history to the concatenated map
-                for ( auto it = arcDependentVariablesPostFitDynamic.begin(); it != arcDependentVariablesPostFitDynamic.end(); ++it )
-                {
-                    concatenatedDependentVariablesPostFitDynamic[ it->first ] = it->second;
-                }
-            }
+    // Perform estimation
+    std::shared_ptr< EstimationOutput< long double, double > > estimationOutput = orbitDeterminationManager.estimateParameters(
+                estimationInput );
 
-            // Convert the dynamic state history to fixed size
-            for ( auto it = concatenatedStateHistoryPostFitDynamic.begin(); it != concatenatedStateHistoryPostFitDynamic.end(); ++it )
-            {
-                concatenatedStateHistoryPostFit[ it->first ] = it->second;
-                //std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
-            }
-            writeDataMapToTextFile( concatenatedStateHistoryPostFit, "stateHistoryPropagatedPostFit_" + fileTag + "itr" + std::to_string(itr_number) + ".txt", saveDirectory,
-                                    "", 18, 18 );
-
-            // Write dependent variables to file
-            writeDataMapToTextFile( concatenatedDependentVariablesPostFitDynamic, "dependentVariablesPropagatedPostFit_" + fileTag + "itr" + std::to_string(itr_number) + ".txt", saveDirectory,
-                                    "", 18, 18 );
-
-            itr_number++;
-        }
-        // Retrieve residuals and set them in matrix
-        Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
-        Eigen::Matrix< long double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
-
-        Eigen::MatrixXd correlationMatrix = estimationOutput->getCorrelationMatrix( );
-
-        Eigen::MatrixXd residualsWithTime;
-        residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
-        residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
-
-        for ( unsigned int i = 0; i < observedObservationCollection->getObservationVector( ).size( ); ++i )
+    int itr_number = 0;
+    for (const auto& iterationOutput : estimationOutput->getSimulationResults()){ //simulationResultsPerIteration_) {
+        auto multiArcResults = std::dynamic_pointer_cast<tudat::propagators::MultiArcSimulationResults<tudat::propagators::SingleArcVariationalSimulationResults, long double, double>>(iterationOutput);
+        auto singleArcResults = multiArcResults->getSingleArcResults();
+        std::map< double, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > concatenatedStateHistoryPostFitDynamic;
+        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > concatenatedDependentVariablesPostFitDynamic;
+        std::map< double, Eigen::Matrix< long double, 6, 1 > > concatenatedStateHistoryPostFit;
+        //std::cout<<singleArcResults.size()<<std::endl;
+        for ( unsigned int arcIndex = 0; arcIndex < singleArcResults.size(); ++arcIndex )
         {
-            residualsWithTime( i, 0 ) = static_cast< Time >( observedObservationCollection->getConcatenatedTimeVector( ).at( i )
-                    ).getSeconds< long double >();
-        }
+            // Retrieve the state history for the current arc
+            std::map< double, Eigen::Matrix< long double, Eigen::Dynamic, 1 > > arcStateHistoryPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getEquationsOfMotionNumericalSolution();
 
-        std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
-        file << std::setprecision( 17 ) << residualsWithTime;
-        file.close();
-
-        std::ofstream file3(saveDirectory + "parameters_" + fileTag + ".txt");
-        file3 << std::setprecision( 21 ) << parameterHistory;
-        file3.close();
-
-
-        // Retrieve covariance matrix
-        Eigen::MatrixXd normalizedCovarianceMatrix = estimationOutput->getNormalizedCovarianceMatrix( );
-        Eigen::MatrixXd unnormalizedCovarianceMatrix = estimationOutput->getUnnormalizedCovarianceMatrix( );
-        std::ofstream file4(saveDirectory + "covariance_" + fileTag + ".txt");
-        file4 << std::setprecision( 17 ) << "Normalized covariance matrix: " << std::endl << normalizedCovarianceMatrix;
-        file4 << std::endl << std::endl;
-        file4 << "Unnormalized covariance matrix: " << std::endl << unnormalizedCovarianceMatrix;
-        file4.close( );
-
-        std::ofstream file2(saveDirectory + "observationsStartAndSize_" + fileTag + ".txt");
-        std::map< ObservableType, std::map< int, std::vector< std::pair< int, int > > > > observationSetStartAndSize =
-                observedObservationCollection->getObservationSetStartAndSizePerLinkEndIndex();
-        for ( auto it = observationSetStartAndSize.begin(); it != observationSetStartAndSize.end(); ++it )
-        {
-            ObservableType observable = it->first;
-            for ( auto it2 = it->second.begin(); it2 != it->second.end(); ++it2 )
+            // Retrieve the dependent variables history for the current arc
+            std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > arcDependentVariablesPostFitDynamic = singleArcResults[arcIndex]->getDynamicsResults( )->getDependentVariableHistory( );
+            // Append the state history to the concatenated map
+            for ( auto it = arcStateHistoryPostFitDynamic.begin(); it != arcStateHistoryPostFitDynamic.end(); ++it )
             {
-                int linkEnd = it2->first;
-                for ( unsigned int i = 0; i < it2->second.size(); ++i )
-                {
-                    file2 << std::setprecision( 15 ) << observable << " " << linkEnd << " " << it2->second.at( i ).first <<
-                        " " << it2->second.at( i ).second << std::endl;
-                }
+                concatenatedStateHistoryPostFitDynamic[ it->first ] = it->second;
+                //std::cout<<concatenatedStateHistoryPostFitDynamic[ it->first ]<<std::endl;
+            }
+            // Append the dependent variables history to the concatenated map
+            for ( auto it = arcDependentVariablesPostFitDynamic.begin(); it != arcDependentVariablesPostFitDynamic.end(); ++it )
+            {
+                concatenatedDependentVariablesPostFitDynamic[ it->first ] = it->second;
             }
         }
-        file2.close();
 
-        std::ofstream file10(saveDirectory + "correlations_" + fileTag + ".txt");
-        file10 << std::setprecision( 21 ) << correlationMatrix ;
-        file10.close();
+        // Convert the dynamic state history to fixed size
+        for ( auto it = concatenatedStateHistoryPostFitDynamic.begin(); it != concatenatedStateHistoryPostFitDynamic.end(); ++it )
+        {
+            concatenatedStateHistoryPostFit[ it->first ] = it->second;
+            //std::cout<<"concatenated state history post fit: "<<concatenatedStateHistoryPostFit[ it->first ]<<std::endl;
+        }
+        writeDataMapToTextFile( concatenatedStateHistoryPostFit, "stateHistoryPropagatedPostFit_" + fileTag + "itr" + std::to_string(itr_number) + ".txt", saveDirectory,
+                                "", 18, 18 );
+
+        // Write dependent variables to file
+        writeDataMapToTextFile( concatenatedDependentVariablesPostFitDynamic, "dependentVariablesPropagatedPostFit_" + fileTag + "itr" + std::to_string(itr_number) + ".txt", saveDirectory,
+                                "", 18, 18 );
+
+        itr_number++;
     }
+    // Retrieve residuals and set them in matrix
+    Eigen::MatrixXd residualHistory = estimationOutput->getResidualHistoryMatrix( );
+    Eigen::Matrix< long double, Eigen::Dynamic, Eigen::Dynamic > parameterHistory = estimationOutput->getParameterHistoryMatrix( );
+
+    Eigen::MatrixXd correlationMatrix = estimationOutput->getCorrelationMatrix( );
+
+    Eigen::MatrixXd residualsWithTime;
+    residualsWithTime.resize( residualHistory.rows( ), residualHistory.cols( ) + 1 );
+    residualsWithTime.rightCols( residualHistory.cols( ) ) = residualHistory;
+
+    for ( unsigned int i = 0; i < observedObservationCollection->getObservationVector( ).size( ); ++i )
+    {
+        residualsWithTime( i, 0 ) = static_cast< Time >( observedObservationCollection->getConcatenatedTimeVector( ).at( i )
+                ).getSeconds< long double >();
+    }
+
+    std::ofstream file(saveDirectory + "residuals_" + fileTag + ".txt");
+    file << std::setprecision( 17 ) << residualsWithTime;
+    file.close();
+
+    std::ofstream file3(saveDirectory + "parameters_" + fileTag + ".txt");
+    file3 << std::setprecision( 21 ) << parameterHistory;
+    file3.close();
+
+
+    // Retrieve covariance matrix
+    Eigen::MatrixXd normalizedCovarianceMatrix = estimationOutput->getNormalizedCovarianceMatrix( );
+    Eigen::MatrixXd unnormalizedCovarianceMatrix = estimationOutput->getUnnormalizedCovarianceMatrix( );
+    std::ofstream file4(saveDirectory + "covariance_" + fileTag + ".txt");
+    file4 << std::setprecision( 17 ) << "Normalized covariance matrix: " << std::endl << normalizedCovarianceMatrix;
+    file4 << std::endl << std::endl;
+    file4 << "Unnormalized covariance matrix: " << std::endl << unnormalizedCovarianceMatrix;
+    file4.close( );
+
+    std::ofstream file2(saveDirectory + "observationsStartAndSize_" + fileTag + ".txt");
+    std::map< ObservableType, std::map< int, std::vector< std::pair< int, int > > > > observationSetStartAndSize =
+            observedObservationCollection->getObservationSetStartAndSizePerLinkEndIndex();
+    for ( auto it = observationSetStartAndSize.begin(); it != observationSetStartAndSize.end(); ++it )
+    {
+        ObservableType observable = it->first;
+        for ( auto it2 = it->second.begin(); it2 != it->second.end(); ++it2 )
+        {
+            int linkEnd = it2->first;
+            for ( unsigned int i = 0; i < it2->second.size(); ++i )
+            {
+                file2 << std::setprecision( 15 ) << observable << " " << linkEnd << " " << it2->second.at( i ).first <<
+                    " " << it2->second.at( i ).second << std::endl;
+            }
+        }
+    }
+    file2.close();
+
+    std::ofstream file10(saveDirectory + "correlations_" + fileTag + ".txt");
+    file10 << std::setprecision( 21 ) << correlationMatrix ;
+    file10.close();
+
+
+    // save true errors
+//    std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
+
+    Eigen::Matrix< long double, Eigen::Dynamic, 1 > TrueError =  (estimationOutput->parameterEstimate_ - truthParameters).transpose() ;
+    std::cout<< "normalized design matrix:"<< std::endl;
+    // Define the output file
+/*
+    std::ofstream fe(saveDirectory + "matrix_" + fileTag +".csv");
+    // Write the matrix to the file
+    fe << estimationOutput->normalizedDesignMatrix_;
+    // Close the file
+    fe.close();
+*/
+    //std::cout<< estimationOutput->normalizedDesignMatrix_ << std::endl;
+    //TrueError = ( estimationOutput->parameterEstimate_ - truthParameters ).transpose( );
+    std::cout<<"True error: "<<( estimationOutput->parameterEstimate_ - truthParameters ).transpose( )<<std::endl;
+    // save formal errors
+   Eigen::Matrix< double, Eigen::Dynamic, 1> FormalError = (estimationOutput->getFormalErrorVector( ).transpose( ));
+    std::cout<<"Formal error: "<<estimationOutput->getFormalErrorVector( ).transpose( )<<std::endl;
+    //std::cout<<"Error ratio: "<<( ( 1.0E-3 * estimationOutput->getFormalErrorVector( ).segment( 0, numberOfParameters ) ).cwiseQuotient(
+    //       estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( )<<std::endl;
+
+    // Open file to save true and formal errors
+    std::ofstream errorFile(saveDirectory + "TrueErrors_" + fileTag + ".txt");
+    errorFile << std::setprecision(17);
+    // Calculate and save error ratio
+    //Eigen::Matrix<long double, Eigen::Dynamic, 1> ErrorRatio = ( ( 1.0E-3 * FormalError.segment( 0, numberOfParameters ) ).cwiseQuotient(
+    //        estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( );
+    // Calculate and save true errors
+    errorFile << TrueError << std::endl;
+    //std::cout<<"Error ratio: "<< ErrorRatio.transpose( ) << std::endl;
+
+    // Close the file
+    errorFile.close();
+    std::ofstream formalErrorFile(saveDirectory + "FormalErrors_" + fileTag + ".txt");
+    formalErrorFile << std::setprecision(17);
+    // Calculate and save error ratio
+    //Eigen::Matrix<long double, Eigen::Dynamic, 1> ErrorRatio = ( ( 1.0E-3 * FormalError.segment( 0, numberOfParameters ) ).cwiseQuotient(
+    //        estimationOutput->parameterEstimate_ - truthParameters ) ).transpose( );
+    // Calculate and save true errors
+    formalErrorFile << FormalError << std::endl;
+    //std::cout<<"Error ratio: "<< ErrorRatio.transpose( ) << std::endl;
+
+    // Close the file
+    formalErrorFile.close();
+    std::cout<<"True and formal errors saved"<<std::endl;
+    std::cout.rdbuf(originalCoutBuffer);
+    outFile.close();
+    return 0;
+
 }

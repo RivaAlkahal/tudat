@@ -708,7 +708,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
         // Retrieve state history from SPICE
         std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > spiceStateHistory;
-        for ( Time t : allObservationTimes )
+        for ( Time t : observationTimesList )
         {
                 spiceStateHistory[ t.getSeconds< long double >() ] =
                         bodies.getBody( spacecraftName )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
@@ -867,11 +867,13 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         std::vector<Eigen::VectorXd> normalizationFactors(numberOfIntegrationArcs);
         // create multi arc propagation settings
         std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
-        #pragma omp parallel for
+        #pragma omp parallel for firstprivate(bodies, spacecraftName,centralBodies, accelerationModelMap,arcEndTimesToEstimate,buffer,arcTimesToEstimate,bodiesToIntegrate, integratorSettings, dependentVariablesToSave, observationSettingsList,linkEndsPerObservable,centralBody)
 	for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
         {
                 std::cout<<"iteration started"<<std::endl;
                 std::cout<<i<<std::endl;
+		SystemOfBodies localBodies = SystemOfBodies(bodies);
+		AccelerationMap localAccelerationModelMap = accelerationModelMap;
                 std::cout<<bodiesToIntegrate[ 0 ]<<std::endl;
                 std::vector<double> filteredObservationTimes;
 		std::ofstream feo(saveDirectory + "observationTimes_arc_" + std::to_string(i) +  fileTag + ".txt");
@@ -891,19 +893,25 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 // Create termination settings
                 std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
                         arcEndTimesToEstimate.at(i) );
+		std::cout<<arcEndTimesToEstimate.at(i)<<std::endl;
+		std::cout<<arcTimesToEstimate.at(i)<<std::endl;
+		std::cout<<"termination settings created"<<std::endl;
+		std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings;
+		propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, localAccelerationModelMap, bodiesToIntegrate,
+					systemInitialStates[i], arcTimesToEstimate.at(i), integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
+		std::cout<<"propagator settings created"<<std::endl;
+		#pragma omp critical
+		{
+		    SingleArcDynamicsSimulator< > dynamicsSimulator(
+                	localBodies, propagatorSettings );
 
-                std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
-                                                                                                                                                      systemInitialStates[i], arcTimesToEstimate.at(i), integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
-
-                SingleArcDynamicsSimulator< > dynamicsSimulator(
-                        bodies, propagatorSettings );
-
-                std::map< double, Eigen::VectorXd > stateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
-                writeDataMapToTextFile( stateHistory, "stateHistoryPropagation_arc_" + std::to_string(i) + fileTag + ".txt", saveDirectory,
+        	    std::map< double, Eigen::VectorXd > stateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+        	    writeDataMapToTextFile( stateHistory, "stateHistoryPropagation_arc_" + std::to_string(i) + fileTag + ".txt", saveDirectory,
                                 "", 18, 18 );
-
-                std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
-    	        getInitialStateParameterSettings< double, double  >( propagatorSettings, bodies);
+		}
+		
+		std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
+		getInitialStateParameterSettings< double, double  >( propagatorSettings, localBodies);
                 parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName,constant_drag_coefficient));// initial_times_list_drag ));
                 //parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
                 //                                         2, 0, 2, 0, "Mars", spherical_harmonics_cosine_coefficient_block ) );
@@ -911,9 +919,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
 
                 parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                         2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
+                                         2, 0, 18, 18, centralBody, spherical_harmonics_cosine_coefficient_block ) );
                 parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                              2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
+                                              2, 1, 18, 18, centralBody, spherical_harmonics_sine_coefficient_block ) );
 
                 std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
                 //periodic gravity field
@@ -958,18 +966,18 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
                 //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
                 parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
-                        "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
+                        centralBody, cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
 
 
                 std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
-                            createParametersToEstimate< double, double >( parameterNames, bodies );
+                            createParametersToEstimate< double, double >( parameterNames, localBodies );
 
                 std::cout<<"parameters to estimate created"<<std::endl;
 
                 // Create orbit determination object.
                 OrbitDeterminationManager< double, double > orbitDeterminationManager =
                         OrbitDeterminationManager< double, double >(
-                                bodies, parametersToEstimate,
+                                localBodies, parametersToEstimate,
                                 observationSettingsList, propagatorSettings,true );
                 std::cout<<"orbit determination manager created"<<std::endl;
 
@@ -994,7 +1002,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 
                 // Simulate observations.
                 std::shared_ptr< ObservationCollection< > > observationsAndTimes = simulateObservations< double, double >(
-                        measurementSimulationInput, orbitDeterminationManager.getObservationSimulators( ), bodies );
+                        measurementSimulationInput, orbitDeterminationManager.getObservationSimulators( ), localBodies );
                 std::cout<<"observations and times created"<<std::endl;
 
                 Eigen::Matrix< double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;

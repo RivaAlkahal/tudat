@@ -91,7 +91,12 @@ namespace aerodynamics
         double difference = marsDate::dateDifference(targetDate, nearestDate);
         // convert the difference in days to seconds, and devide them by the number of seconds in a martian year to get the day of year
         double dayOfYear = difference*24*3600 / 88668.0; // 88668 seconds is the length of a martian day (24.63 h * 3600 s/h)
-        // std::cout<<"Day of year: "<<dayOfYear<<std::endl;
+        // check if the day of year is greater than 668, if so, return error
+        if (dayOfYear > 680.0 || dayOfYear < 0.0){
+            std::cerr << "The day of year is out of range: " << dayOfYear << ". It should be between 0 and 668. PROGRAM TERMINATED!!" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        //std::cout<<"Day of year: "<<dayOfYear<<std::endl;
         return dayOfYear;
     }
 
@@ -256,9 +261,9 @@ namespace aerodynamics
         using basic_mathematics::computeLegendrePolynomialExplicit;
         marsDate date2 = marsDate(year_, month_, day_, hours_ , minutes_, 0.0);
         double doy = date2.marsDayofYear(date2); //day of year
-        //std::cout << "doy: " << doy << std::endl;
+
         double t = computeLocalSolarTime(longitude, day_, month_, year_, hours_, minutes_); //seconds
-        //std::cout<<"F107: "<<currentF107_<<std::endl;
+        std::cout<<"F107: "<<currentF107_<<std::endl;
         if (currentF107_ > 100.0) {
             currentF107_ = 100.0;
         }
@@ -297,13 +302,13 @@ namespace aerodynamics
         //Get the day of year
         marsDate date2 = marsDate(year_, month_, day_, hours_ , minutes_, 0.0);
         double doy = date2.marsDayofYear(date2);
-        // std::cout << "doy: " << doy << std::endl;
+        //std::cout << "doy: " << doy << std::endl;
         //Get the local solar time
         double t = computeLocalSolarTime(longitude, day_, month_, year_, hours_, minutes_); //hours
         // std::cout << "LST: " << t << std::endl;
         //Get the local solar time in radians + pi.
         double hl0 = omega*t+ mathematical_constants::PI;
-        // std::cout << "hl: " << omega*t << std::endl;
+        //std::cout << "hl: " << omega*t << std::endl;
         double cos2h = cos(hl0)* cos(hl0) - sin(hl0)*sin(hl0);
         double sin2h = 2.0*sin(hl0)*cos(hl0);
         //flux terms:

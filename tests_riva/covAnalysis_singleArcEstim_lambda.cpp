@@ -1,4 +1,10 @@
 //
+// Created by ralkahal on 15-4-25.
+//
+//
+// Created by ralkahal on 17-3-25.
+//
+//
 // Created by ralkahal on 17-2-25.
 //
 //
@@ -25,6 +31,12 @@
 #include <limits>
 #include "fstream"
 #include "iostream"
+#include <mutex>
+#include <thread>
+#include <unordered_map>
+#include <queue>
+#include <chrono>
+#include <condition_variable>
 
 #include <boost/test/unit_test.hpp>
 
@@ -58,6 +70,192 @@
 #include <boost/date_time/gregorian/gregorian.hpp>
 
 #include "tudat/astro/ground_stations/transmittingFrequencies.h"
+
+std::mutex mtx;
+std::condition_variable cv;
+bool done = false;
+bool dataReady = false;
+int numberOfGlobalParameters;
+std::string saveDirectory;
+std::string fileTag;
+using MatrixMap = std::unordered_map<std::string, std::vector<Eigen::MatrixXd>>;
+using VectorMap = std::unordered_map<std::string, std::vector<Eigen::VectorXd>>;
+
+MatrixMap matrixStorage;
+VectorMap vectorStorage;
+
+void setupManualCovarianceMatrix(const MatrixMap& matrix_snap, const VectorMap& vector_snap, int numberOfGlobalParameters){
+    int numCols;
+	int numberOfLocalParameters = 7;
+	int stateVectorSize =6;
+	int nLocal= 1;
+	int nArcs;
+	int arcMatrixSize;
+	int total_size;
+	Eigen::MatrixXd P_global;
+    auto normalizedDesignMatrices = matrix_snap.at("normalizedDesignMatrices");
+    auto itVec = vector_snap.at("normalizationFactors");
+    auto unnormalizedDesignMatrices = matrix_snap.at("unnormalizedDesignMatrices");
+	    numCols = numberOfGlobalParameters;
+    	nArcs =normalizedDesignMatrices.size();
+	    std::cout<<nArcs<<std::endl;
+    	arcMatrixSize = normalizedDesignMatrices.front().rows();
+    	total_size = nArcs*(numberOfLocalParameters) + numberOfGlobalParameters;
+	    std::cout<<total_size<<std::endl;
+    	P_global = Eigen::MatrixXd::Zero(total_size,total_size);
+
+
+	// starting processing the matrices
+    // merge normalization factors for all matrices, except for the global parameters
+        Eigen::VectorXd normalizationFactorsMerged = Eigen::VectorXd::Zero(total_size);
+        //Eigen::VectorXd localNormalizationFactors= Eigen::VectorXd::Zero(nArcs * nLocal);;
+	size_t stateOffst= 0;
+	size_t localOffst = nArcs*6;
+        for (int i = 0; i < nArcs; i++){
+            normalizationFactorsMerged.segment(stateOffst + i*(6),6) = itVec[i].segment(0,6);
+                std::cout<<"first normalization factor merged"<<std::endl;
+            normalizationFactorsMerged.segment(localOffst+i*nLocal,nLocal) = itVec[i].segment(6,nLocal);
+                std::cout<<"second normalization factor merged"<<std::endl;
+        }
+        //normalizationFactorsMerged.segment(nArcs*(numberOfLocalParameters-1),nLocal*nArcs) = localNormalizationFactors;
+        std::cout<<"Normalization factors merged!"<<std::endl;
+	//int totalRows = unnormalizedDesignMatrices.size() * unnormalizedDesignMatrices[0].rows();
+
+	int totalRows = std::accumulate(unnormalizedDesignMatrices.begin(), unnormalizedDesignMatrices.end(),0,[](int sum, const Eigen::MatrixXd& mat) {return sum + mat.rows();});
+	std::cout<<"totalRows"<< totalRows<<std::endl;
+	Eigen::MatrixXd stackedGlobalParsDesignMatrix(totalRows,numCols);
+
+	// Extract and stack columns
+	int position = 0;
+	for (const auto &mat: unnormalizedDesignMatrices){
+	    for (size_t j = 0; j<numCols; j++){
+		std::cout<<"j"<<j<<std::endl;
+		std::cout<<numberOfLocalParameters+j<<std::endl;
+		std::cout<<mat.rows()<<std::endl;
+		stackedGlobalParsDesignMatrix.block(position,j,mat.rows(),1) = mat.col(numberOfLocalParameters+j);
+	    }
+	    position += mat.rows();
+	}
+	std::cout<<"Stacked unnormalized design matrix of global parameters!"<<std::endl;
+	std::cout<<"Now performing normalization..."<<std::endl;
+
+	// Normalize the columns of the stacked global parameters of the design matrices
+	Eigen::VectorXd normalizationFactorsGP(stackedGlobalParsDesignMatrix.cols());
+
+	for (int k = 0; k < stackedGlobalParsDesignMatrix.cols(); k++){
+	    Eigen::Index maxIndex;
+	    double maxAbsVal = stackedGlobalParsDesignMatrix.col(k).cwiseAbs().maxCoeff(&maxIndex);
+	    double maxVal = stackedGlobalParsDesignMatrix(maxIndex,k);
+	    if (maxVal != 0.0){
+		stackedGlobalParsDesignMatrix.col(k) /= maxVal;
+		normalizationFactorsGP[k] = maxVal;
+	    }
+	}
+        normalizationFactorsMerged.segment(nArcs*numberOfLocalParameters,numCols) = normalizationFactorsGP;
+	std::cout<<"Done with normalization!"<<std::endl;
+	std::cout<<"Now bringing back the values to the normalized design matrices..."<<std::endl;
+	// Reconstructing normalized matrix
+	position = 0;
+	//int R = 0;
+	for (auto &mat:normalizedDesignMatrices){
+	    for (size_t j = 0; j<numCols; j++){
+	            mat.col(numberOfLocalParameters+j) = stackedGlobalParsDesignMatrix.block(position,j,mat.rows(),1);
+	    }
+	    position += mat.rows();
+	}
+
+
+	std::cout<<"Updated normalized design matrices!"<<std::endl;
+	std::cout<<"Now computing the covariance matrices..."<<std::endl;
+	std::vector<Eigen::MatrixXd> resultNormalizedInvCovMatrices;
+	for (size_t i = 0; i < nArcs; i++){
+	    Eigen::DiagonalMatrix<double,Eigen::Dynamic> W(vectorStorage["weightDiagonals"][i]);
+	    Eigen::MatrixXd resultNormalizedInvCovMatrix = normalizedDesignMatrices[i].transpose() * W * normalizedDesignMatrices[i];
+	    resultNormalizedInvCovMatrices.push_back(resultNormalizedInvCovMatrix);
+	}
+	std::cout<<"Normalized inverse covariance matrices computed!"<<std::endl;
+	std::cout<<"Now summing up the values for the global parameters..."<<std::endl;
+	//Eigen::MatrixXd sumCovarianceMatrix = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
+        //Eigen::MatrixXd inverseUnnCovarianceMatrixSummed = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
+        Eigen::MatrixXd inverseNormalizedCovarianceMatrixSummedGP = Eigen::MatrixXd::Zero(numCols, numCols);
+	for (int i = 0; i < resultNormalizedInvCovMatrices.size(); i++){
+                //inverseUnnCovarianceMatrixSummed += inverseUnnormalizedCovarianceMatrices[i].block(7,7,numberOfGlobalParameters,numberOfGlobalParameters);
+                //sumCovarianceMatrix += covarianceMatrices[i].block(7,7,numberOfGlobalParameters,numberOfGlobalParameters);
+    		inverseNormalizedCovarianceMatrixSummedGP += resultNormalizedInvCovMatrices[i].block(numberOfLocalParameters,numberOfLocalParameters,numCols,numCols);
+	}
+	std::cout<<"Global parameters values summed up!"<<std::endl;
+        std::cout<<"Now assembling the global normalized inverse covariance matrix..."<<std::endl;
+
+	// fill in the global matrix
+        int globalOffset = nArcs*(stateVectorSize+nLocal);
+
+        for (int i = 0; i<nArcs;i++) {
+                int localOffset = nArcs*stateVectorSize+i*nLocal;
+                //arc covariance matrix
+                P_global.block(i*stateVectorSize,i*stateVectorSize,stateVectorSize,stateVectorSize) = matrixStorage["inverseNormalizedCovarianceMatrices"][i].block(0,0,stateVectorSize,stateVectorSize);
+                //arc-local covariance matrix
+                P_global.block(i*stateVectorSize,localOffset,stateVectorSize,nLocal) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal);
+                //local-arc covariance matrix
+                P_global.block(localOffset,i*stateVectorSize,nLocal,stateVectorSize) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal).transpose();
+                //local-local covariance matrix
+                P_global.block(localOffset,localOffset,nLocal,nLocal) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize,nLocal,nLocal);
+
+                //arc-global covariance matrix
+                P_global.block(i*stateVectorSize,globalOffset,stateVectorSize,numCols) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numCols);
+                //global-arc covariance matrix
+                P_global.block(globalOffset,i*stateVectorSize,numCols,stateVectorSize) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numCols).transpose();
+                //local-global covariance matrix
+                P_global.block(localOffset,globalOffset,nLocal,numCols) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numCols);
+                //global-local covariance matrix
+                P_global.block(globalOffset,localOffset,numCols,nLocal) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numCols).transpose();
+        }
+        // global-global covariance matrix
+        P_global.block(globalOffset,globalOffset,numCols,numCols) = inverseNormalizedCovarianceMatrixSummedGP;
+        std::cout<<"Global normalized inverse covariance matrix assembled!"<<std::endl;
+        std::cout<<"Now updating the normalization factors"<<std::endl;
+        Eigen::VectorXd normalizationFactorsGP2 = Eigen::VectorXd::Zero(total_size);
+        normalizationFactorsGP2.head(stackedGlobalParsDesignMatrix.cols()) = normalizationFactorsGP;
+
+
+        std::cout<<"Now inverting the inverse covariance matrices..."<<std::endl;
+        Eigen::MatrixXd NormalizedCovarianceMatrixSummed = P_global.completeOrthogonalDecomposition().pseudoInverse() ;
+        std::ofstream file17 (saveDirectory + "sumNormalizedCovarianceMatrix" + std::to_string(nArcs) + fileTag + ".txt");
+        file17 << std::setprecision(32) << NormalizedCovarianceMatrixSummed;
+        file17.close( );
+	std::cout<<"Normalized covariance matrix inverted!"<<std::endl;
+	std::cout<<"Now unnormalizing it back again..."<<std::endl;
+        //Eigen::MatrixXd normalizDiagonals = normalizationFactorsMerged.asDiagonal();
+        Eigen::MatrixXd resultedUnnormalizedCovarianceMatrix = Eigen::MatrixXd::Zero(total_size,total_size);
+        for( int i = 0; i < normalizationFactorsMerged.rows( ); i++ )
+        {
+                for( int j = 0; j < normalizationFactorsMerged.rows( ); j++ )
+                {
+                        resultedUnnormalizedCovarianceMatrix(i,j) = NormalizedCovarianceMatrixSummed( i, j ) /  (normalizationFactorsMerged( i ) *  normalizationFactorsMerged( j ));
+
+                }
+        }
+	//Eigen::MatrixXd resultedUnnormalizedCovarianceMatrix = normalizDiagonals*NormalizedCovarianceMatrixSummed * normalizDiagonals;
+	std::cout<<"Unnormalization done!"<<std::endl;
+	std::cout<<"Now saving the matrices..."<<std::endl;
+
+	std::ofstream file13 (saveDirectory + "resultedUnnormalizedCovarianceMatrix" + std::to_string(nArcs) + fileTag + ".txt");
+        file13 << std::setprecision(32) << resultedUnnormalizedCovarianceMatrix ;
+        file13.close( );
+        std::ofstream file14 (saveDirectory + "normalizationFactors" + std::to_string(nArcs) +fileTag + ".txt");
+        file14 << std::setprecision(32) << normalizationFactorsMerged ;
+        file14.close( );
+        //std::ofstream file15 (saveDirectory + "sumCovarianceMatrix" + fileTag + ".txt");
+        //file15 << std::setprecision(32) << sumCovarianceMatrix ;
+        //file15.close( );
+	std::ofstream file16 (saveDirectory + "suminverseNormalizedCovarianceMatrix" + std::to_string(nArcs) + fileTag + ".txt");
+        file16 << std::setprecision(32) << P_global;
+        file16.close( );
+
+	dataReady = false;
+
+
+
+}
 
 struct GravityCoefficient {
         int degree = 0;    // Degree (n)
@@ -264,10 +462,10 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext25_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext26_ipng_mgs95j.bsp" );
 
-    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler_apriori/observationChanged/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
+    std::string saveDirectory = "/home/ralkahal/nnew-tudat-tests/covAn/twowaydoppler_apriori/loopTest/";    //std::string fileTag = "arcLengths_160darc_startat320_0per_10hobs_6itr";
     //std::string fileTag = "DEBUGnoapr234001poly_aprperiodicand18StaticandDragperarc_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
      //                     + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
-    std::string fileTag = "observDebugDragperarc_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+    std::string fileTag = "loopTestDragperarc_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
                                   + "_" + std::to_string(finalTime) + "_" + std::to_string(intperturbPos) + "perpos_" + std::to_string(intperturbVel) + "_pervel_" + std::to_string(ihoursperday) + "hobs_" + std::to_string(iterationNumber) + "itr_spiceprop" ;
 
     // set input options
@@ -447,7 +645,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
     cosineAmplitudes[1](2,2) += 4.704102072862383e-12/(365*24*3600);
     cosineAmplitudes[1](2,3) += 1.325699794642290e-12/(365*24*3600);
     cosineAmplitudes[1](2,4) += 1.175466344751454e-12/(365*24*3600);
-    
+
     std::map<int, Eigen::MatrixXd> sineAmplitudes;
         std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
@@ -737,7 +935,7 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 	}
 
 
-        const std::string filenameGrav = "/home/ralkahal/nnew-tudat-tests/jgmro_120d_sha.tab"; 
+        const std::string filenameGrav = "/home/ralkahal/nnew-tudat-tests/jgmro_120d_sha.tab";
         std::vector<GravityCoefficient> coefficients;
         // Filter and extract errors up to degree and order 8
         int maxDegree = 18;
@@ -859,9 +1057,12 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
         std::vector<Eigen::VectorXd> weightDiagonals;
         std::vector<Eigen::MatrixXd> unnormalizedDesignMatrices;
 	std::vector<Eigen::MatrixXd> normalizedDesignMatrices;
-        int numberOfGlobalParameters;
 	std::vector<Eigen::MatrixXd> inverseNormalizedCovarianceMatrices;
         std::vector<Eigen::VectorXd> normalizationFactors;
+	std::unordered_map<std::string, std::vector<Eigen::VectorXd>> vectorStorage;
+	std::unordered_map<std::string, std::vector<Eigen::MatrixXd>> matrixStorage;
+	//matrix types: unnormalizedDesignMatrices, normalizedDesignMatrices,inverseNormalizedCovarianceMatrices
+	// vector types: weightDiagonals,normalizationFactors
         // create multi arc propagation settings
         std::vector< std::shared_ptr< SingleArcPropagatorSettings< double > > > arcPropagationSettingsList;
         for( unsigned int i = 0; i < numberOfIntegrationArcs; i++ )
@@ -904,10 +1105,8 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 //parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
                 //                                         2, 0, 2, 0, "Mars", spherical_harmonics_cosine_coefficient_block ) );
 
-
-
                 parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
-                                         2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
+                2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
                 parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
                                               2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
 
@@ -1069,23 +1268,28 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
                             covarianceInput );
                 std::cout<<"covariance output created"<<std::endl;
+		{
+		    std::lock_guard<std::mutex> lock(mtx);
+		    Eigen::MatrixXd unnormalizedDesignMatrix = covarianceOutput->getUnnormalizedDesignMatrix( );
+            	    std::ofstream fe(saveDirectory + "unnormalizedDesignMatrix_arc_" + std::to_string(i) +  fileTag + ".txt");
+            	    fe <<  std::setprecision(32) <<unnormalizedDesignMatrix;
+            	    fe.close();
+		    unnormalizedDesignMatrices.push_back(unnormalizedDesignMatrix);
+		    matrixStorage["unnormalizedDesignMatrices"].push_back(unnormalizedDesignMatrix);
 
-		Eigen::MatrixXd unnormalizedDesignMatrix = covarianceOutput->getUnnormalizedDesignMatrix( );
-                //std::ofstream fe(saveDirectory + "unnormalizedDesignMatrix_arc_" + std::to_string(i) +  fileTag + ".txt");
-                //fe <<  std::setprecision(32) <<unnormalizedDesignMatrix;
-                //fe.close();
-		unnormalizedDesignMatrices.push_back(unnormalizedDesignMatrix);
-
-		Eigen::MatrixXd normalizedDesignMatrix = covarianceOutput->getNormalizedDesignMatrix( );
+		    Eigen::MatrixXd normalizedDesignMatrix = covarianceOutput->getNormalizedDesignMatrix( );
                 //std::ofstream fe2(saveDirectory + "normalizedDesignMatrix" + std::to_string(i)  + fileTag + ".txt");
                 // Write the matrix to the file
                 //fe2 << std::setprecision(32) <<normalizedDesignMatrix;
                 // Close the file
                 //fe2.close();
-                normalizedDesignMatrices.push_back(normalizedDesignMatrix);
+            	    normalizedDesignMatrices.push_back(normalizedDesignMatrix);
+		    matrixStorage["normalizedDesignMatrices"].push_back(normalizedDesignMatrix);
 
-                Eigen::VectorXd weightMatrixDiagonal = covarianceOutput->weightsMatrixDiagonal_;
-                weightDiagonals.push_back(weightMatrixDiagonal);
+            	    Eigen::VectorXd weightMatrixDiagonal = covarianceOutput->weightsMatrixDiagonal_;
+            	    weightDiagonals.push_back(weightMatrixDiagonal);
+		    vectorStorage["weightDiagonals"].push_back(weightMatrixDiagonal);
+
                 //std::ofstream fe3(saveDirectory + "weightsMatrixDiagonal_arc_" + std::to_string(i) +fileTag + ".txt");
                 // Write the matrix to the file
                 //fe3 <<  std::setprecision(32) << weightMatrixDiagonal;
@@ -1097,8 +1301,9 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 //fein <<  std::setprecision(32) <<inverseUnnormalizedCovarianceMatrix;
                 //fein.close();
 
-                Eigen::MatrixXd inverseNormalizedCovarianceMatrix = covarianceOutput->getNormalizedInverseCovarianceMatrix( );
-                inverseNormalizedCovarianceMatrices.push_back(inverseNormalizedCovarianceMatrix);
+            	    Eigen::MatrixXd inverseNormalizedCovarianceMatrix = covarianceOutput->getNormalizedInverseCovarianceMatrix( );
+            	    inverseNormalizedCovarianceMatrices.push_back(inverseNormalizedCovarianceMatrix);
+		    matrixStorage["inverseNormalizedDesignMatrices"].push_back(inverseNormalizedCovarianceMatrix);
                 //std::ofstream fean(saveDirectory + "inverseNormalizedCovarianceMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
                 //fean <<  std::setprecision(32) <<inverseNormalizedCovarianceMatrix;
                 //fean.close();
@@ -1108,387 +1313,71 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
                 ////fe4 << covarianceOutput->normalizedCovarianceMatrix_;
                 // Close the file
                 ////fe4.close();
-                Eigen::VectorXd normalizationFactor = covarianceOutput->designMatrixTransformationDiagonal_;
-                normalizationFactors.push_back(normalizationFactor);
+            	    Eigen::VectorXd normalizationFactor = covarianceOutput->designMatrixTransformationDiagonal_;
+            	    normalizationFactors.push_back(normalizationFactor);
+		    vectorStorage["normalizationFactors"].push_back(normalizationFactor);
                 //std::ofstream fe5(saveDirectory + "designMatrixTransformationDiagonal_arc_" + std::to_string(i)  + fileTag + ".txt");
                 //fe5 <<  std::setprecision(32) <<normalizationFactor;
                 //fe5.close();
 
-                Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
+            	    Eigen::MatrixXd correlationMatrix = covarianceOutput->getCorrelationMatrix( );
                 //std::ofstream file10 (saveDirectory + "correlationMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
                 //file10 << std::setprecision(32) << correlationMatrix ;
                 //file10.close( );
 
-                Eigen::MatrixXd covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );
-                covarianceMatrices.push_back(covarianceMatrix);
-
+            	    Eigen::MatrixXd covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );
+            	    covarianceMatrices.push_back(covarianceMatrix);
+		    matrixStorage["covarianceMatrices"].push_back(covarianceMatrix);
                 //std::ofstream file11 (saveDirectory + "conCovarianceMatrix_arc_" + std::to_string(i) + fileTag + ".txt");
                 //file11 << std::setprecision(32) << covarianceMatrix ;
                 //file11.close( );
 
-                Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = covarianceOutput->getFormalErrorVector( );
-                std::cout<<"formal error: "<<covarianceOutput->getFormalErrorVector( ).transpose( )<<std::endl;
+            	    Eigen::Matrix<double, Eigen::Dynamic, 1> FormalError = covarianceOutput->getFormalErrorVector( );
+            	    std::cout<<"formal error: "<<covarianceOutput->getFormalErrorVector( ).transpose( )<<std::endl;
                 //std::ofstream file12 (saveDirectory + "FormalError_arc_" + std::to_string(i) + fileTag + ".txt");
                 //file12 << std::setprecision(32) << FormalError ;
                 //file12.close( );
 
+		}
+            cv.notify_one();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+
         }
-        std::cout<<"covariance analysis for all the arcs done, starting summing them up..."<<std::endl;
-        std::cout<< "number of global parameters: "<< numberOfGlobalParameters<<std::endl;
-	int numberOfLocalParameters = 7;
-        int stateVectorSize =6;
-        int nLocal= 1;
-	int numCols = numberOfGlobalParameters;
-        int nArcs = normalizedDesignMatrices.size();
-        int arcMatrixSize = normalizedDesignMatrices[0].rows();
-        int total_size = nArcs*(numberOfLocalParameters) + numberOfGlobalParameters;
-        Eigen::MatrixXd P_global = Eigen::MatrixXd::Zero(total_size,total_size);
-
-
-        // merge normalization factors for all matrices, except for the global parameters
-        Eigen::VectorXd normalizationFactorsMerged = Eigen::VectorXd::Zero(total_size);
-        //Eigen::VectorXd localNormalizationFactors= Eigen::VectorXd::Zero(nArcs * nLocal);;
-	size_t stateOffst= 0;
-	size_t localOffst = nArcs*6;
-        for (int i = 0; i < nArcs; i++){
-            normalizationFactorsMerged.segment(stateOffst + i*(6),6) = normalizationFactors[i].segment(0,6);
-                std::cout<<"first normalization factor merged"<<std::endl;
-            normalizationFactorsMerged.segment(localOffst+i*nLocal,nLocal) = normalizationFactors[i].segment(6,nLocal);
-                std::cout<<"second normalization factor merged"<<std::endl;
-        }
-        //normalizationFactorsMerged.segment(nArcs*(numberOfLocalParameters-1),nLocal*nArcs) = localNormalizationFactors;
-        std::cout<<"Normalization factors merged!"<<std::endl;
-	//int totalRows = unnormalizedDesignMatrices.size() * unnormalizedDesignMatrices[0].rows();
-	int totalRows = std::accumulate(unnormalizedDesignMatrices.begin(), unnormalizedDesignMatrices.end(),0,[](int sum, const Eigen::MatrixXd& mat) {return sum + mat.rows();});
-	std::cout<<"totalRows"<< totalRows<<std::endl;
-	Eigen::MatrixXd stackedGlobalParsDesignMatrix(totalRows,numCols);
-
-	// Extract and stack columns
-	int position = 0;
-	for (const auto &mat: unnormalizedDesignMatrices){
-	    for (size_t j = 0; j<numberOfGlobalParameters; j++){
-		std::cout<<"j"<<j<<std::endl;
-		std::cout<<numberOfLocalParameters+j<<std::endl;
-		std::cout<<mat.rows()<<std::endl;
-		stackedGlobalParsDesignMatrix.block(position,j,mat.rows(),1) = mat.col(numberOfLocalParameters+j);
-		
-	    }
-	    position += mat.rows();
-	}
-	std::cout<<"Stacked unnormalized design matrix of global parameters!"<<std::endl;
-	std::cout<<"Now performing normalization..."<<std::endl;
-
-	// Normalize the columns of the stacked global parameters of the design matrices
-	Eigen::VectorXd normalizationFactorsGP(stackedGlobalParsDesignMatrix.cols());
-
-	for (int k = 0; k < stackedGlobalParsDesignMatrix.cols(); k++){
-	    Eigen::Index maxIndex;
-	    double maxAbsVal = stackedGlobalParsDesignMatrix.col(k).cwiseAbs().maxCoeff(&maxIndex);
-	    double maxVal = stackedGlobalParsDesignMatrix(maxIndex,k);
-	    if (maxVal != 0.0){
-		stackedGlobalParsDesignMatrix.col(k) /= maxVal;
-		normalizationFactorsGP[k] = maxVal;
-	    }
-	}
-        normalizationFactorsMerged.segment(nArcs*numberOfLocalParameters,numberOfGlobalParameters) = normalizationFactorsGP;
-	std::cout<<"Done with normalization!"<<std::endl;
-	std::cout<<"Now bringing back the values to the normalized design matrices..."<<std::endl;
-	// Reconstructing normalized matrix
-	position = 0;
-	int R = 0;
-	for (auto &mat: normalizedDesignMatrices){
-	    for (size_t j = 0; j<numberOfGlobalParameters; j++){
-	            mat.col(numberOfLocalParameters+j) = stackedGlobalParsDesignMatrix.block(position,j,mat.rows(),1);
-	    }
-	    position += mat.rows();
-	    //std::ofstream feR(saveDirectory + "updateNormalizedDesignMatrix" + std::to_string(R)  + fileTag + ".txt");
-            // Write the matrix to the file
-            //feR << std::setprecision(32) <<mat;
-            // Close the file
-            //feR.close();
-	    R +=1;
-	}
-
-
-	std::cout<<"Updated normalized design matrices!"<<std::endl;
-	std::cout<<"Now computing the covariance matrices..."<<std::endl;
-	std::vector<Eigen::MatrixXd> resultNormalizedInvCovMatrices;
-	for (size_t i = 0; i < normalizedDesignMatrices.size(); i++){
-	    Eigen::DiagonalMatrix<double,Eigen::Dynamic> W(weightDiagonals[i]);
-	    Eigen::MatrixXd resultNormalizedInvCovMatrix = normalizedDesignMatrices[i].transpose() * W * normalizedDesignMatrices[i];
-	    resultNormalizedInvCovMatrices.push_back(resultNormalizedInvCovMatrix);
-	}
-	std::cout<<"Normalized inverse covariance matrices computed!"<<std::endl;
-	std::cout<<"Now summing up the values for the global parameters..."<<std::endl;
-	//Eigen::MatrixXd sumCovarianceMatrix = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
-        //Eigen::MatrixXd inverseUnnCovarianceMatrixSummed = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
-        Eigen::MatrixXd inverseNormalizedCovarianceMatrixSummedGP = Eigen::MatrixXd::Zero(numberOfGlobalParameters, numberOfGlobalParameters);
-	for (int i = 0; i < resultNormalizedInvCovMatrices.size(); i++){
-                //inverseUnnCovarianceMatrixSummed += inverseUnnormalizedCovarianceMatrices[i].block(7,7,numberOfGlobalParameters,numberOfGlobalParameters);
-                //sumCovarianceMatrix += covarianceMatrices[i].block(7,7,numberOfGlobalParameters,numberOfGlobalParameters);
-    		inverseNormalizedCovarianceMatrixSummedGP += resultNormalizedInvCovMatrices[i].block(numberOfLocalParameters,numberOfLocalParameters,numberOfGlobalParameters,numberOfGlobalParameters);
-	}
-	std::cout<<"Global parameters values summed up!"<<std::endl;
-        std::cout<<"Now assembling the global normalized inverse covariance matrix..."<<std::endl;
-        //std::vector<Eigen::MatrixXd> P_arc_local(nArcs, Eigen::MatrixXd::Zero(stateVectorSize,nLocal));
-        //std::vector<Eigen::MatrixXd> P_local_params(nArcs, Eigen::MatrixXd::Zero(nLocal,nLocal));
-        /*
-        for (int i =0; i<nArcs; i++) {
-                P_arc_local[i] = inverseNormalizedCovarianceMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal);
-                P_local_params[i] = inverseNormalizedCovarianceMatrices[i].block(stateVectorSize,stateVectorSize,nLocal,nLocal);
-        }
-        std::vector<Eigen::MatrixXd> P_arc_global(nArcs, Eigen::MatrixXd::Zero(stateVectorSize,numberOfGlobalParameters));
-        std::vector<Eigen::MatrixXd> P_local_global(nArcs, Eigen::MatrixXd::Zero(nLocal,numberOfGlobalParameters));
-        for (int i =0; i<nArcs; i++) {
-                P_arc_global[i] = inverseNormalizedCovarianceMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numberOfGlobalParameters);
-                P_local_global[i] = inverseNormalizedCovarianceMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numberOfGlobalParameters);
-        }
-        */
-// fill in the global matrix
-        int globalOffset = nArcs*(stateVectorSize+nLocal);
-
-        for (int i = 0; i<nArcs;i++) {
-                int localOffset = nArcs*stateVectorSize+i*nLocal;
-                //arc covariance matrix
-                P_global.block(i*stateVectorSize,i*stateVectorSize,stateVectorSize,stateVectorSize) = inverseNormalizedCovarianceMatrices[i].block(0,0,stateVectorSize,stateVectorSize);
-                //arc-local covariance matrix
-                P_global.block(i*stateVectorSize,localOffset,stateVectorSize,nLocal) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal);
-                //local-arc covariance matrix
-                P_global.block(localOffset,i*stateVectorSize,nLocal,stateVectorSize) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize,stateVectorSize,nLocal).transpose();
-                //local-local covariance matrix
-                P_global.block(localOffset,localOffset,nLocal,nLocal) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize,nLocal,nLocal);
-
-                //arc-global covariance matrix
-                P_global.block(i*stateVectorSize,globalOffset,stateVectorSize,numberOfGlobalParameters) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numberOfGlobalParameters);
-                //global-arc covariance matrix
-                P_global.block(globalOffset,i*stateVectorSize,numberOfGlobalParameters,stateVectorSize) = resultNormalizedInvCovMatrices[i].block(0,stateVectorSize+nLocal,stateVectorSize,numberOfGlobalParameters).transpose();
-                //local-global covariance matrix
-                P_global.block(localOffset,globalOffset,nLocal,numberOfGlobalParameters) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numberOfGlobalParameters);
-                //global-local covariance matrix
-                P_global.block(globalOffset,localOffset,numberOfGlobalParameters,nLocal) = resultNormalizedInvCovMatrices[i].block(stateVectorSize,stateVectorSize+nLocal,nLocal,numberOfGlobalParameters).transpose();
-        }
-        // global-global covariance matrix
-        P_global.block(globalOffset,globalOffset,numberOfGlobalParameters,numberOfGlobalParameters) = inverseNormalizedCovarianceMatrixSummedGP;
-        std::cout<<"Global normalized inverse covariance matrix assembled!"<<std::endl;
-        std::cout<<"Now updating the normalization factors"<<std::endl;
-        Eigen::VectorXd normalizationFactorsGP2 = Eigen::VectorXd::Zero(total_size);
-        normalizationFactorsGP2.head(stackedGlobalParsDesignMatrix.cols()) = normalizationFactorsGP;
-
-
-        std::cout<<"Now inverting the inverse covariance matrices..."<<std::endl;
-        Eigen::MatrixXd NormalizedCovarianceMatrixSummed = P_global.completeOrthogonalDecomposition().pseudoInverse() ;
-        std::ofstream file17 (saveDirectory + "sumNormalizedCovarianceMatrix" + fileTag + ".txt");
-        file17 << std::setprecision(32) << NormalizedCovarianceMatrixSummed;
-        file17.close( );
-	std::cout<<"Normalized covariance matrix inverted!"<<std::endl;
-	std::cout<<"Now unnormalizing it back again..."<<std::endl;
-        //Eigen::MatrixXd normalizDiagonals = normalizationFactorsMerged.asDiagonal();
-        Eigen::MatrixXd resultedUnnormalizedCovarianceMatrix = Eigen::MatrixXd::Zero(total_size,total_size);
-        for( int i = 0; i < normalizationFactorsMerged.rows( ); i++ )
-        {
-                for( int j = 0; j < normalizationFactorsMerged.rows( ); j++ )
-                {
-                        resultedUnnormalizedCovarianceMatrix(i,j) = NormalizedCovarianceMatrixSummed( i, j ) /  (normalizationFactorsMerged( i ) *  normalizationFactorsMerged( j ));
-
-                }
-        }
-	//Eigen::MatrixXd resultedUnnormalizedCovarianceMatrix = normalizDiagonals*NormalizedCovarianceMatrixSummed * normalizDiagonals;
-	std::cout<<"Unnormalization done!"<<std::endl;
-	std::cout<<"Now saving the matrices..."<<std::endl;
-
-	std::ofstream file13 (saveDirectory + "resultedUnnormalizedCovarianceMatrix" + fileTag + ".txt");
-        file13 << std::setprecision(32) << resultedUnnormalizedCovarianceMatrix ;
-        file13.close( );
-        std::ofstream file14 (saveDirectory + "normalizationFactors" + fileTag + ".txt");
-        file14 << std::setprecision(32) << normalizationFactorsMerged ;
-        file14.close( );
-        //std::ofstream file15 (saveDirectory + "sumCovarianceMatrix" + fileTag + ".txt");
-        //file15 << std::setprecision(32) << sumCovarianceMatrix ;
-        //file15.close( );
-	std::ofstream file16 (saveDirectory + "suminverseNormalizedCovarianceMatrix" + fileTag + ".txt");
-        file16 << std::setprecision(32) << P_global;
-        file16.close( );
-
-
-        //std::cout<<"single arc propagation done"<<std::endl;
-
-/*
-        std::map< double, Eigen::Matrix< double,Eigen::Dynamic,1> > integrationResult;
-        std::map< double, Eigen::Matrix< double, Eigen::Dynamic, 1 > > dependentVariableResult;
-        for ( unsigned int arcIndex = 0; arcIndex < numberOfIntegrationArcs; ++arcIndex ) {
-                auto singleArcResult = dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
-                                    arcIndex )->getEquationsOfMotionNumericalSolution( );
-                integrationResult.insert(singleArcResult.begin(), singleArcResult.end());
-                auto singleArcDepVars = dynamicsSimulator.getMultiArcPropagationResults()->getSingleArcResults( ).at(
-                                    arcIndex )->getDependentVariableHistory( );
-                dependentVariableResult.insert(singleArcDepVars.begin(), singleArcDepVars.end());
-                // std::map< double, Eigen::VectorXd > integrationResult = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
-                // std::map< double, Eigen::VectorXd > dependentVariableResult = dynamicsSimulator.getDependentVariableHistory( );
-        }
-        writeDataMapToTextFile( integrationResult, "stateHistoryPropagation_" + fileTag + ".txt", saveDirectory,
-                                "", 18, 18 );
-        writeDataMapToTextFile( dependentVariableResult, "dependentVariablesPropagation_" + fileTag + ".txt", saveDirectory,
-                                "", 18, 18 );
-
-
-
-        // save the last column of dependentVariableResult
-        std::map<double, Eigen::VectorXd> relativePosEarthtoMars;
-        for (const auto& [key, vector] : dependentVariableResult) {
-                // Check if the vector has at least 3 elements
-                if (vector.size() >= 3) {
-                        // Extract the last three elements and store them in the new map
-                        relativePosEarthtoMars[key] = vector.tail(3);
-                } else {
-                        std::cerr << "Warning: Vector at key " << key << " has less than 3 elements." << std::endl;
-                        // Optional: you can choose to add an empty or zero vector if needed
-                        relativePosEarthtoMars[key] = Eigen::VectorXd::Zero(3);  // Fills with zeros as placeholder
-                }
-        }
-
-
-        // Compute the norms of the relative positions
-        std::map<double, double> normsEarthtoMars = computeNorms(relativePosEarthtoMars);
-        // Compute the cross product of the position and velocity vectors
-        std::map<double, Eigen::VectorXd> relativePosMarstoSat = computeCrossProduct(integrationResult);
-        // Compute the norm of the cross product
-        std::map<double, double> normsMarstoSat = computeNorms(relativePosMarstoSat);
-        // Compute the dot product of the norms
-        std::map<double, double> dotProducts = computeDotProductMap(relativePosEarthtoMars, relativePosMarstoSat);
-        // Compute the angle between the two vectors
-        std::map<double, double> angles;
-        for (const auto& [key, dotProduct] : dotProducts) {
-                // Calculate the angle in radians
-                double angle = std::acos(dotProduct / (normsEarthtoMars[key] * normsMarstoSat[key]));
-                // Convert to degrees and store in the map
-                angles[key] = angle * 180 / mathematical_constants::PI;
-        }
-
-        // save angle to file
-        writeDataMapToTextFile( angles, "BetaAngles_" + fileTag + ".txt", saveDirectory,
-                                "", 18, 18 );
-
-*/
-
-
-// Create the noise functions that return Eigen::VectorXd
-
-    // noiseFunctions[ one_way_range ] =
-    //         [=](const double input) -> Eigen::VectorXd {
-    //             // Call the original function that returns a double
-    //             double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
-    //                     createBoostContinuousRandomVariableGeneratorFunction(
-    //                             tudat::statistics::normal_boost_distribution, { 0.0, rangeNoise }, 0.0
-    //                     ), input
-    //             );
-    //             // Convert the double to Eigen::VectorXd
-    //             Eigen::VectorXd result(1);
-    //             result(0) = noiseValue;
-    //             return result;
-    //         };
-
-
-
-
-
-
-        // set a priori to the drag coefficients
-    //const int DIAGONALS = numberOfIntegrationArcs*6;
-    //double aprioriuncertainty =1.0/(0.1*0.1);
-
-
-    // Create a 2D vector (matrix) filled with zeros
-    //Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
-    // Fill the matrix with the values of the diagonal
-    //for (int i = DIAGONALS; i < numberOfParameters; ++i) {
-    //    matrix(i,i) = aprioriuncertainty;
-    //}
-    //print matrix
-    //std::cout<<matrix<<std::endl;
-        // retrieve simulate observations
-/*
-        std::ofstream outputfile1(saveDirectory + "concatenatedlinkedId-stationNames-Observations" + fileTag + ".txt");
-        outputfile1 << std::setprecision(17);
-        std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
-        std::vector< double > concatenatedObservationTimes = observationsAndTimes->getConcatenatedTimeVector();
-        Eigen::Matrix< double, Eigen::Dynamic, 1 > observationVector = observationsAndTimes->getObservationVector();
-        std::vector< LinkEnds >  concatenatedLinkEndIdNames = observationsAndTimes->getConcatenatedLinkEndIdNames();
-        std::cout << "Observation Times size:" << concatenatedObservationTimes.size() << std::endl;
-        std::cout << "Observation Vector size:" << observationVector.size() << std::endl;
-        std::cout<<"concatenated link end ids: " << std::endl;
-        if (concatenatedObservationTimes.size() != observationVector.size() || concatenatedObservationTimes.size() != concatenatedLinkEndIdNames.size()) {
-                throw std::runtime_error("Error: Observation times, observations vector and link end IDs have different sizes.");
-        }
-
-        for (size_t i = 0; i < concatenatedObservationTimes.size(); ++i) {
-                double time = concatenatedObservationTimes[i];
-                double observation = observationVector[i];
-                LinkEnds station = concatenatedLinkEndIdNames[i];
-
-                std::string stationName;
-                int linkEndID = -1;
-                for (const auto &linkEnd : station) {
-                        if (linkEnd.first == 5) {
-                                linkEndID = static_cast<int>(linkEnd.first);
-                                stationName = linkEnd.second.stationName_;
-                                break;
-                        }
-
-                }
-                if (linkEndID == -1) {
-                        for (const auto &linkEnd : station) {
-                                if (linkEnd.first == 0) {
-                                        linkEndID = static_cast<int>(linkEnd.first);
-                                        stationName = linkEnd.second.stationName_;
-                                        break;
-                                }
-                        }
-                }
-                if (linkEndID == -1) {
-                        for (const auto &linkEnd : station) {
-                                linkEndID = static_cast<int>(linkEnd.first);
-                                stationName = linkEnd.second.stationName_;
-                                break;
-
-                        }
-                }
-                outputfile1 << stationName << "," << linkEndID << "," << time << "," << observation << std::endl;
-        }
-        //std::map<tudat::observation_models::ObservableType, std::map<int, std::vector<std::shared_ptr<SingleObservationSet < double, double>>>>> sortedObservationSets = observationsAndTimes->getSortedObservationSets();
-
-        std::ofstream outputFile(saveDirectory + "observations_and_times_" + fileTag + ".txt");
-        outputFile << std::setprecision(17);
-        outputFile << "linkendtype,observable_type,time,observation\n";
-        std::cout<<"output file created, starting loop over the sorted observations"<<std::endl;
-
-        for (const auto &observableType: sortedObservationSets) {
-                std::cout << "Observable type: " << observableType.first << std::endl;
-                for (const auto &stationId: observableType.second) {
-                        std::cout << "Station ID: " << stationId.first << std::endl;
-                        for (const auto &obsSetPtr: stationId.second) {
-                                auto time = obsSetPtr->getObservationTimes();
-                                auto observation = obsSetPtr->getObservationsVector();
-
-                                std::cout << "Observation time: " << time.size() << std::endl;
-                                std::cout << "Observation: " << observation.size() << std::endl;
-                                // Save times and observations to file
-                                for (size_t i = 0; i < time.size(); ++i)
-                                {
-                                        outputFile << stationId.first << "," << observableType.first << "," << time[i] << "," << observation[i] << std::endl;
-                                }
-                        }
-                }
-        }
-        outputFile.close();
-*/
-
-
-
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        done=true;
+    }
+    cv.notify_all();
 }
+
+void consumer(){
+    int last_processed = 0;
+
+    while (true) {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [&](){
+            auto it = matrixStorage.find("unnormalizedDesignMatrices");
+            return done || (it != matrixStorage.end() && it->second.size() >= last_processed + 1);
+            });
+
+        auto it = matrixStorage.find("unnormalizedDesignMatrices");
+        if (it != matrixStorage.end() && it ->second.size() >= last_processed + 1) {
+            MatrixMap matricesCopy = matrixStorage;
+            VectorMap vectorsCopy = vectorStorage;
+            lock.unlock();
+            setupManualCovarianceMatrix(matricesCopy,vectorsCopy,numberOfGlobalParameters);
+            last_processed += 1;
+        }else if (done) {
+            break;
+        }
+        }
+    std::cout << "Consumer thread finished processing." << std::endl;
+    }
 int main() {
         int iterationNumber = 5;
         std::vector<int> arcLengths= {5};
-        std::vector<int> number_of_arcs= {1096};
+        std::vector<int> number_of_arcs= {3};
         std::vector<double> hoursperday = {10.0};
         std::vector<int> ihoursperday = {10};
         //std::vector<double> initialTimes = {-240.0*86400.0, -180.0*86400.0, -60.0*86400.0,0.0, 60*86400.0, 180.0*86400.0, 240.0*86400.0};
@@ -1499,8 +1388,8 @@ int main() {
         std::vector<int> intperturbPos = {100};
         std::vector<double> perturbVel = {0.001};
         std::vector<int> intperturbVel = {0001};
-        std::vector<int> totalDuration = {5480};
-        std::vector<double> finalTimes= {86400.0*5480.0};
+        std::vector<int> totalDuration = {15};
+        std::vector<double> finalTimes= {86400.0*15.0};//86400.0*2740.0};
         bool performEst = false;
 	bool filterArcTimes = false;
         for (int i = 0; i<arcLengths.size();i++) {
@@ -1508,8 +1397,11 @@ int main() {
                         for (int initialTime = 0; initialTime<finalTimes.size(); initialTime++) {
                                 double finalTime = initialTimes[initialTime] + finalTimes.at(initialTime);
                                 for (int intperturb = 0; intperturb<perturbPos.size(); intperturb++) {
-                                        arcLengthRuns( hoursperday[hours],  initialTimes[0],  finalTimes.at(initialTime), arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  totalDuration.at(initialTime),  startTime[0],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst,filterArcTimes);
-
+                                        std::thread t1(arcLengthRuns, hoursperday[hours],  initialTimes[0],  finalTimes.at(initialTime), arcLengths[i],  iterationNumber, perturbPos[intperturb], perturbVel[intperturb], number_of_arcs[i],  totalDuration.at(initialTime),  startTime[0],  intperturbPos[intperturb],  intperturbVel[intperturb], ihoursperday[hours], performEst,filterArcTimes);
+                                        std::thread t2(consumer);
+                                    t1.join();
+                                    t2.join();
+                                    std::cout<<"first iteration threads finished" <<std::endl;
                                 }
 
                         }
@@ -1517,4 +1409,5 @@ int main() {
         }
 
 
+    return 0;
 }
