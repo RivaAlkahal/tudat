@@ -291,11 +291,22 @@ public:
         arcStartTimeList_.push_back( 1.0E300 );
 
         // Retrieve current empirical accelerations (set in each arc)
-        Eigen::Matrix3d currentTimeInvariantEmpiricalAccelerations = empiricalAcceleration.at( 0 )->getAccelerationComponents( );
-        for( unsigned int i = 1; i < empiricalAcceleration.size( ); i++ )
+        //Eigen::Matrix3d currentTimeInvariantEmpiricalAccelerations = empiricalAcceleration.at( 0 )->getAccelerationComponents( );
+        Eigen::Matrix3d currentTimeInvariantEmpiricalAccelerations = Eigen::Matrix3d::Zero();
+	try{
+	    currentTimeInvariantEmpiricalAccelerations = empiricalAcceleration.at( 0 )->getAccelerationComponents( );
+	}
+	catch(...){ }
+	for( unsigned int i = 1; i < empiricalAcceleration.size( ); i++ )
         {
-            Eigen::Matrix3d comparisonAccelerations = empiricalAcceleration.at( i )->getAccelerationComponents( );
-            if( comparisonAccelerations != currentTimeInvariantEmpiricalAccelerations )
+            Eigen::Matrix3d comparisonAccelerations =  Eigen::Matrix3d::Zero();
+	    try
+	    {
+		comparisonAccelerations = empiricalAcceleration.at( i )->getAccelerationComponents( );
+            }
+	    catch(...){ }
+
+	    if( comparisonAccelerations != currentTimeInvariantEmpiricalAccelerations )
             {
                 std::cerr << "Warning when initializing arc-wise empirical acceleration parameter, list of input acceleration models do "
                              "not have identical accelerations."

@@ -1,0 +1,117 @@
+	
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 4 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 5 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 4 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 5 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 5 ) );
+
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 4 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 5 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 6 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 7 ) );
+
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 4 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 5 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 6 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 7 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 8 ) );
+	
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 4 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 5 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 6 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 7 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 8 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 9 ) );
+
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 4 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 5 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 6 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 7 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 8 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 9 ) );
+	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 10 ) );
+
+        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
+
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 4 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 5 ) );
+
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 4 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 5 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 6 ) );
+
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 4 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 5 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 6 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 7 ) );
+
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 4 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 5 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 6 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 7 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 8 ) );
+
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 4 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 5 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 6 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 7 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 8 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 9 ) );
+
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 4 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 5 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 6 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 7 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair(10, 8 ) );
+	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 9 ) );

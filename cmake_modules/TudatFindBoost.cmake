@@ -94,6 +94,13 @@ foreach(_TUDAT_BOOST_COMPONENT ${_TUDAT_REQUIRED_BOOST_LIBS})
                     ../tests_riva/covAnalysis_singleArcEstim_saveOnGo_new.cpp
                     ../tests_riva/tunner.cpp
                     ../tests_riva/covAnalysis_singleArcEstim_saveOnGo_Empiricals.cpp
+                    ../tests_riva/computeCovariances.cpp
+                    ../tests_riva/computeCovariance_test.cpp
+                    ../tests_riva/parallelArcProcessVikings.cpp
+                    ../tests_riva/parallelArcProcessMultiSat.cpp
+                    ../tests_riva/computeCovariance_TestMultiSat.cpp
+                    ../tests_riva/parallelArcProcessEmpiricals.cpp
+                    ../tests_riva/computeCovariances_ForEmps.cpp
             )
         endif()
         set_target_properties(Boost::${_TUDAT_BOOST_COMPONENT} PROPERTIES

@@ -53,6 +53,16 @@
 
 #include "tudat/astro/ground_stations/transmittingFrequencies.h"
 
+
+struct GravityCoefficient {
+    int degree = 0;    // Degree (n)
+    int order = 0;     // Order (m)
+    double Cnm = 0.0;  // Cosine coefficient
+    double Snm = 0.0;  // Sine coefficient
+    double CnmErr = 0.0; // Error in Cnm
+    double SnmErr = 0.0; // Error in Snm
+};
+
 void loadGravityFieldFile(const std::string& filename,
                           std::vector<GravityCoefficient>& coefficients) {
         std::ifstream file(filename);

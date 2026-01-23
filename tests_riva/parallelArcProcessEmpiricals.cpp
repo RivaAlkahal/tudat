@@ -1,0 +1,1204 @@
+//
+// Created by ralkahal on 14-10-25.
+//
+//
+// Created by ralkahal on 16-9-25.
+//
+//
+// Created by ralkahal on 4-9-25.
+//
+//
+// Created by ralkahal on 06-08-25.
+//
+
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include <vector>
+#include <sstream>
+#include <fstream>
+#include <Eigen/Dense>
+#include <cstdlib>
+#include <Eigen/Core>
+#include <Eigen/Sparse>
+#include <Eigen/SparseLU>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <boost/test/unit_test.hpp>
+#include <stdexcept>
+#include "nlohmann/json.hpp"
+
+#include "tudat/basics/testMacros.h"
+#include "tudat/astro/aerodynamics/customAerodynamicCoefficientInterface.h"
+#include "tudat/astro/aerodynamics/aerodynamicAcceleration.h"
+#include "tudat/astro/reference_frames/aerodynamicAngleCalculator.h"
+#include "tudat/simulation/propagation_setup/dynamicsSimulator.h"
+#include "tudat/interface/spice/spiceEphemeris.h"
+#include "tudat/interface/spice/spiceRotationalEphemeris.h"
+#include "tudat/io/basicInputOutput.h"
+#include "tudat/simulation/environment_setup/body.h"
+#include "tudat/simulation/estimation_setup/createNumericalSimulator.h"
+#include "tudat/simulation/environment_setup/defaultBodies.h"
+#include "tudat/simulation/environment_setup/body.h"
+#include "tudat/astro/basic_astro/timeConversions.h"
+#include "tudat/astro/aerodynamics/marsDtmAtmosphereModel.h"
+#include "tudat/io/solarActivityData.h"
+#include "tudat/astro/basic_astro/unitConversions.h"
+
+#include "tudat/basics/testMacros.h"
+#include "tudat/simulation/estimation.h"
+#include "tudat/simulation/estimation_setup.h"
+
+#include "tudat/io/readOdfFile.h"
+#include "tudat/io/readTabulatedMediaCorrections.h"
+#include "tudat/io/readTabulatedWeatherData.h"
+#include "tudat/simulation/estimation_setup/processOdfFile.h"
+#include "tudat/simulation/propagation_setup/setNumericallyIntegratedStates.h"
+
+#include <boost/date_time/gregorian/gregorian.hpp>
+
+#include "tudat/astro/ground_stations/transmittingFrequencies.h"
+
+struct ArcConfig
+{
+    int arcIndex;
+    double arcStart;
+    double arcEnd;
+    std::vector<double> obsStartTimes;
+    std::vector<double> obsEndTimes;
+};
+ArcConfig loadArcConfig(const std::string& configFilePath) {
+    std::ifstream configFile(configFilePath);
+    if (!configFile.is_open()) {
+        throw std::runtime_error("Could not open config file: " + configFilePath);
+    }
+
+    nlohmann::json configJson;
+    configFile >> configJson;
+
+    ArcConfig arcConfig;
+    arcConfig.arcIndex = configJson["arc_index"];
+    arcConfig.arcStart = configJson["arc_start"];
+    arcConfig.arcEnd = configJson["arc_end"];
+    arcConfig.obsStartTimes = configJson["obs_start_times"].get<std::vector<double>>();
+    arcConfig.obsEndTimes = configJson["obs_end_times"].get<std::vector<double>>();
+
+    return arcConfig;
+}
+
+inline void saveParamCounts(const std::string& outDir,
+                            int numberOfLocalParameters,
+                            int numberOfGlobalParameters) // pass 0 if none / not needed
+{
+        std::ofstream f(outDir + "/param_counts.txt");
+        if (!f) throw std::runtime_error("Cannot open param_counts.txt for writing");
+        // Format: one integer per line
+        f << numberOfLocalParameters << "\n"
+          << numberOfGlobalParameters << "\n";
+}
+struct GravityCoefficient {
+        int degree = 0;    // Degree (n)
+        int order = 0;     // Order (m)
+        double Cnm = 0.0;  // Cosine coefficient
+        double Snm = 0.0;  // Sine coefficient
+        double CnmErr = 0.0; // Error in Cnm
+        double SnmErr = 0.0; // Error in Snm
+};
+
+void loadGravityFieldFile(const std::string& filename,
+                          std::vector<GravityCoefficient>& coefficients) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+                throw std::runtime_error("Unable to open file: " + filename);
+        }
+        // Skip the header line
+        std::string header;
+        if (!std::getline(file, header)) {
+                throw std::runtime_error("File is empty or header is missing.");
+        }
+
+        // Read coefficients
+        std::string line;
+        while (std::getline(file, line)) {
+                std::replace(line.begin(), line.end(), ',', ' ');
+
+                std::istringstream lineStream(line);
+                GravityCoefficient coeff;
+
+                lineStream >> coeff.degree >> coeff.order
+                           >> coeff.Cnm >> coeff.Snm
+                           >> coeff.CnmErr >> coeff.SnmErr;
+
+                if (lineStream.fail()) {
+                        throw std::runtime_error("File format is incorrect in the coefficients section.");
+                }
+
+                coefficients.push_back(coeff);
+        }
+
+        file.close();
+}
+
+
+void extractErrorsWithinRange(
+    const std::vector<GravityCoefficient>& coefficients,
+    int minDegree, int maxDegree,
+    std::vector<double>& cnmErrors,
+    std::vector<double>& snmErrors
+) {
+        for (const auto& coeff : coefficients) {
+                if (coeff.degree >= minDegree && coeff.degree <= maxDegree && coeff.order <= maxDegree) {
+                        cnmErrors.push_back(coeff.CnmErr);
+                        if (coeff.SnmErr != 0.0) {
+                                snmErrors.push_back(coeff.SnmErr);
+                        }
+                }
+        }
+}
+
+
+// Function to compute the cross product of position and velocity and store it in a map
+std::map<double, Eigen::VectorXd> computeCrossProduct(const std::map<double, Eigen::VectorXd>& stateHistory) {
+        std::map<double, Eigen::VectorXd> crossProductMap;
+
+        for (const auto& [time, stateVector] : stateHistory) {
+                // Ensure the state vector has exactly 6 elements (3 for position, 3 for velocity)
+                if (stateVector.size() == 6) {
+                        // Extract position and velocity vectors
+                        Eigen::Vector3d position = stateVector.head(3);
+                        Eigen::Vector3d velocity = stateVector.tail(3);
+
+                        // Compute the cross product
+                        Eigen::Vector3d crossProduct = position.cross(velocity);
+
+                        // Store the result in the map with the time as the key
+                        crossProductMap[time] = crossProduct;
+                } else {
+                        std::cerr << "Warning: State vector at time " << time << " does not have exactly 6 elements." << std::endl;
+                        crossProductMap[time] = Eigen::Vector3d::Zero();  // Placeholder if state vector is not size 6
+                }
+        }
+
+        return crossProductMap;
+}
+// Example function to compute dot products for a map of vectors
+std::map<double, double> computeDotProductMap(const std::map<double, Eigen::VectorXd>& vectorMap1, const std::map<double, Eigen::VectorXd>& vectorMap2) {
+        std::map<double, double> dotProductMap;
+
+        for (const auto& [time, vector1] : vectorMap1) {
+                // Ensure the time key exists in both maps
+                if (vectorMap2.find(time) != vectorMap2.end()) {
+                        const Eigen::VectorXd& vector2 = vectorMap2.at(time);
+                        // Compute the dot product
+                        dotProductMap[time] = vector1.dot(vector2);
+
+                } else {
+                        std::cerr << "Warning: Time key " << time << " not found in both maps." << std::endl;
+                }
+        }
+
+        return dotProductMap;
+}
+std::map<double, double> computeNorms(const std::map<double, Eigen::VectorXd>& relativePos) {
+        std::map<double, double> norms;
+
+        for (const auto& [key, vector] : relativePos) {
+                // Calculate the norm of the vector (last 3 columns)
+                double norm = vector.norm();
+                norms[key] = norm;
+        }
+
+        return norms;
+}
+
+
+void ensureDirectoryExists(const std::string& path)
+{
+    struct stat info;
+    if(stat(path.c_str(), &info)!=0)
+    {
+	if (mkdir(path.c_str(), 0755)!=0)
+	{
+	    throw std::runtime_error("Failed to create output directory: " + path);
+	}
+    }
+}
+void saveMatrixBinary(const std::string& filename, const Eigen::MatrixXd& matrix)
+{
+    std::ofstream out(filename, std::ios::binary);
+    if(!out)
+    {
+	throw std::runtime_error("Cannot open file: " + filename);
+    }
+
+    Eigen::Index rows = matrix.rows(),cols = matrix.cols();
+    out.write(reinterpret_cast<const char*>(&rows), sizeof(Eigen::Index));
+    out.write(reinterpret_cast<const char*>(&cols), sizeof(Eigen::Index));
+    out.write(reinterpret_cast<const char*>(matrix.data()),rows*cols*sizeof(double));
+    out.close();
+}
+void saveVectorBinary(const std::string& filename, const Eigen::VectorXd& vector)
+{
+        std::ofstream out(filename, std::ios::binary);
+        if (!out)
+                throw std::runtime_error("Cannot open file: " + filename);
+
+        Eigen::Index size = vector.size();
+        out.write(reinterpret_cast<const char*>(&size), sizeof(Eigen::Index));
+        out.write(reinterpret_cast<const char*>(vector.data()), size * sizeof(double));
+}
+
+void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirectory, Eigen::MatrixXd& covarianceMatrix, Eigen::MatrixXd& unnormalizedDesignMatrix,  Eigen::MatrixXd& normalizedDesignMatrix,Eigen::VectorXd& normalizationFactor, Eigen::VectorXd& weightMatrixDiagonal, Eigen::MatrixXd& P0_matrix) {
+        using namespace tudat;
+        using namespace aerodynamics;
+        using namespace simulation_setup;
+        using namespace numerical_integrators;
+        using namespace simulation_setup;
+        using namespace basic_astrodynamics;
+        using namespace propagators;
+        using namespace estimatable_parameters;
+        using namespace observation_models;
+        using namespace basic_mathematics;
+        using namespace basic_astrodynamics;
+        using namespace tudat::spice_interface;
+        using namespace tudat::ephemerides;
+        using namespace tudat::input_output;
+        using namespace tudat::orbit_determination;
+        using namespace tudat::interpolators;
+        using namespace tudat::orbital_element_conversions;
+
+
+        spice_interface::loadStandardSpiceKernels( );
+        //load the kernels for Viking1
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/vo1_rcon.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mar033.bsp" );
+        //spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
+
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map1.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map3.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8.bsp" );
+
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext1.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext2.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext3.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext4.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext10.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext11.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext12.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext13.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext14.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext15.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext16.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext17.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext18.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext19.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext20.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext21.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext22.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext23.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext24.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext25.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext26.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_50year_nominal.bsp");
+
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map4_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map5_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map6_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map7_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map8_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext1_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext2_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext3_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext4_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext5_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext6_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext7_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext8_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext9_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext10_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext11_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext12_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext13_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext14_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext15_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext16_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext17_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext18_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext19_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext20_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext21_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext22_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext23_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext24_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext25_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext26_ipng_mgs95j.bsp" );
+
+        // load spice kernels for MRO
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp1_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp2_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp3_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp4_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp5_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp6_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp7_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp8_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp9_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp10_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp11_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp12_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp13_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp14_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp15_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp16_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp17_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp18_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp19_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp20_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp21_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp22_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp23_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp24_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp25_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp26_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp27_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp28_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp29_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp30_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp31_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp32_ssd_mro110c.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp33_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp34_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp35_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp36_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp37_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp38_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp39_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp40_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp41_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp42_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp43_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp44_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp45_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp46_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp47_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp48_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp49_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp50_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp51_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp52_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp53_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp54_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp55_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp56_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp57_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp58_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp59_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp60_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp61_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp62_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp63_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp64_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp65_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp66_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp67_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp68_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp69_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp70_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp71_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp72_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp73_ssd_mro95a.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/MRO_SPICE/mro_psp74_ssd_mro95a.bsp" );
+
+        //load the kernels for Odyssey
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext1_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext2_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext3_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext4_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext5_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext6_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext7_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext8_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext9_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext10_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext11_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext12_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext13_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext14_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext15_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext16_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext17_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext18_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext19_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext20_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext21_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext22_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext23_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext24_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext25_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext26_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext27_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext28_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext29_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext30_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext31_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext32_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext33_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext34_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext35_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext36_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext37_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext38_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext39_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext40_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext41_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext42_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext43_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext44_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext45_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext46_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext47_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext48_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext49_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext50_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext51_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext52_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext53_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext54_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext55_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext56_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext57_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext58_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext59_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext60_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext61_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext62_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext63_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext64_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext65_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext66_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext67_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext68_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext69_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext70_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext71_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext72_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext73_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext74_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext75_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext76_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext77_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext78_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext79_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext80_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_ext81_ipng_mgs95j.bsp" );
+
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map1_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map2_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map3_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map4_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map5_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map6_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map7_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map8_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map9_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map10_ipng_mgs95j.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/ODY_SPICE/m01_map11_ipng_mgs95j.bsp" );
+
+        int arcIndex = config.arcIndex;
+        double arcStart = config.arcStart;
+        double arcEnd = config.arcEnd;
+        std::vector<double> obsStartTimes = config.obsStartTimes;
+        std::vector<double> obsEndTimes = config.obsEndTimes;
+        double arcLength = arcEnd - arcStart;
+        double arcDuration = arcLength * 86400.0; // Convert days to seconds
+        double initialEphemerisTime = arcStart-120.0;
+        double finalEphemerisTime = arcEnd+120.0;
+        double epehemeridesTimeStep = 60.0;
+        double ephemerisTimeStepPlanets =  epehemeridesTimeStep;
+        double ephemerisTimeStepSpacecraft = epehemeridesTimeStep ;
+        double buffer = 30.0 * epehemeridesTimeStep;
+        double step_size;
+        string dragEst = "per-rev";
+        double hoursperdaydrag = 2.0;
+        int ndays = 1;
+        if (dragEst == "per-rev") {
+                step_size = hoursperdaydrag * 3600;
+        }
+        else
+        {
+                step_size = ndays * 24 * 3600;
+        }
+        std::vector<double> initial_times_list_emp;
+        for (double time =arcStart +buffer; time <= arcEnd-buffer; time += step_size) {
+                if (arcEnd-time < step_size) {
+                        //initial_times_list_emp.push_back(arcEndTimesToEstimate.at(i));
+                        break;
+                }
+                initial_times_list_emp.push_back(time);
+        }
+
+        std::string fileTag = "accumul_InverseAprALLGlobalPars_drag_5" + std::to_string(arcIndex) +  "darc_startat" + std::to_string(arcStart) + "_" + std::to_string(arcEnd);
+
+        // bodies to create
+        std::vector< std::string > bodiesToCreate = {
+                "Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Phobos", "Deimos" };
+
+        std::string baseFrameOrientation = "MARSIAU";
+        std::string baseFrameOrigin = "SSB";
+        std::vector< std::string > spacecraftName;
+        std::vector<double> spacecraftMass;
+        double twoWayDopplerNoise;
+        spacecraftName = {"MGS"};
+        spacecraftMass = {1030.5};
+        twoWayDopplerNoise = 0.0001;
+
+        BodyListSettings bodySettings;
+        bodySettings = getDefaultBodySettings(
+                        bodiesToCreate, initialEphemerisTime - buffer, finalEphemerisTime + buffer,
+                        baseFrameOrigin, baseFrameOrientation, ephemerisTimeStepPlanets );
+        std::cout<<"Body Settings created"<<std::endl;
+        bodySettings.at( "Earth" )->groundStationSettings = getDsnStationSettings( );
+        std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
+        bodySettings.at( "Mars" )->atmosphereSettings = marsDtmAtmosphereSettings( filename, 3378.0E3);
+
+        // loop over spacecrafts if needed
+        for ( unsigned int i = 0; i < spacecraftName.size( ); i++ ) {
+                bodySettings.addSettings( spacecraftName.at(i) );
+                bodySettings.at( spacecraftName.at(i) )->ephemerisSettings =
+                std::make_shared< InterpolatedSpiceEphemerisSettings >(
+                        initialEphemerisTime - buffer, finalEphemerisTime + buffer,
+                        ephemerisTimeStepSpacecraft, baseFrameOrigin, baseFrameOrientation,
+                        std::make_shared< interpolators::LagrangeInterpolatorSettings >( 8 ), spacecraftName.at(i) );
+                bodySettings.at( spacecraftName.at(i) )->constantMass = spacecraftMass.at(i);
+        };
+        // Set gravity field variations
+        std::vector< std::shared_ptr< GravityFieldVariationSettings > > gravityFieldVariations;
+
+        // Set solid body tide gravity field variation
+        std::vector< std::string > deformingBodies;
+        deformingBodies.push_back( "Sun" );
+        deformingBodies.push_back( "Phobos" );
+        std::map< int, std::vector< std::complex< double > > > loveNumbers;
+        std::vector< std::complex< double > > degreeTwoLoveNumbers_;
+        degreeTwoLoveNumbers_.push_back( std::complex< double >( 0.169, 0.0 ) );
+        loveNumbers[ 2 ] = degreeTwoLoveNumbers_;
+        std::shared_ptr< GravityFieldVariationSettings > singleGravityFieldVariation =
+            std::make_shared< BasicSolidBodyGravityFieldVariationSettings >( deformingBodies, loveNumbers );
+        gravityFieldVariations.push_back( singleGravityFieldVariation );
+
+        // Set periodic gravity field variation
+        std::vector<Eigen::MatrixXd> cosineShAmplitudesCosineTime;
+        std::vector<Eigen::MatrixXd> cosineShAmplitudesSineTime;
+        std::vector<Eigen::MatrixXd> sineShAmplitudesCosineTime;
+        std::vector<Eigen::MatrixXd> sineShAmplitudesSineTime;
+        std::vector<double> frequencies;
+        cosineShAmplitudesCosineTime.push_back(
+                ( Eigen::MatrixXd( 4, 3 )<<2.39E-9, 0.92E-10, 0.0,
+                        1.67E-9, -2.22E-10, 0.0,
+                        0.85E-10, 0.0, 0.0,
+                        0.38E-9, 0.0, 0.0 ).finished( ) );
+        cosineShAmplitudesCosineTime.push_back(
+                ( Eigen::MatrixXd( 4, 3 )<<1.23E-9, -0.19E-10, 0.0,
+                        0.32E-9, 0.0, 0.0,
+                        0.35E-10, 0.0, 0.0,
+                        0.15E-9, 0.0, 0.0 ).finished( ) );
+        cosineShAmplitudesCosineTime.push_back(
+                ( Eigen::MatrixXd( 4, 3 )<<0.53E-9, 0.0, 0.0,
+                        0.13E-9, 0.0, 0.0,
+                        -0.51E-10, 0.0, 0.0,
+                        0.32E-9, 0.0, 0.0).finished( ) );
+
+        cosineShAmplitudesSineTime.push_back(
+                ( Eigen::MatrixXd( 4, 3 )<<-0.83E-9, -1.68E-9, 0.0,
+                        2.35E-9, 0.48E-10, 0.0,
+                        -1.56E-10, 0.0, 0.0,
+                        1.30E-9, 0.0, 0.0 ).finished( ) );
+        cosineShAmplitudesSineTime.push_back(
+                ( Eigen::MatrixXd( 4, 3 )<<0.73E-9, -0.16E-10, 0.0,
+                        0.21E-9, 0.0, 0.0,
+                        -0.24E-10, 0.0, 0.0,
+                        0.42E-9, 0.0, 0.0).finished( ) );
+        cosineShAmplitudesSineTime.push_back(
+                ( Eigen::MatrixXd( 4, 3 )<<0.46E-9, 0.0, 0.0,
+                        0.15E-9, 0.0, 0.0,
+                        -0.64E-10, 0.0, 0.0,
+                        -0.02E-09, 0.0, 0.0 ).finished( ) );
+
+
+        sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+        sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+        sineShAmplitudesCosineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+
+        sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+        sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+        sineShAmplitudesSineTime.push_back(Eigen::MatrixXd::Zero( 4, 3 ));
+        frequencies.resize( 3 );
+        frequencies = { 2*mathematical_constants::PI/(686.98*86400.0), 4*mathematical_constants::PI/(686.98*86400.0), 6*mathematical_constants::PI/(686.98*86400.0) };
+        std::cout<<"assigned values for the amplitudes"<<std::endl;
+        std::shared_ptr< GravityFieldVariationSettings > periodicGravityFieldVariations =
+                std::make_shared< PeriodicGravityFieldVariationsSettings >(
+                        cosineShAmplitudesCosineTime, cosineShAmplitudesSineTime, sineShAmplitudesCosineTime, sineShAmplitudesSineTime,
+                        frequencies, 0.0, 2, 0 );
+
+        gravityFieldVariations.push_back( periodicGravityFieldVariations );
+        std::cout<<"periodic gravity field variation created"<<std::endl;
+
+        // Set polynomial gravity field variation
+        std::map<int, Eigen::MatrixXd> cosineAmplitudes;
+        cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
+        //nVec Root 800 km depth
+        cosineAmplitudes[ 1 ]( 0, 0 ) += -7.00583559071078e-13/(365*24*3600);
+        cosineAmplitudes[1](0,1) +=-5.44909982178362e-14/(365*24*3600);
+        cosineAmplitudes[1](0,2) += -8.31134553095663e-13/(365*24*3600);
+        cosineAmplitudes[1](1,0) += 1.15640729781333e-13/(365*24*3600);
+        cosineAmplitudes[1](1,1) += -2.61531330180095e-13/(365*24*3600);
+        cosineAmplitudes[1](1,2) += 1.02212332919433e-13/(365*24*3600);
+        cosineAmplitudes[1](1,3) += -8.00674595992919e-13/(365*24*3600);
+        cosineAmplitudes[1](2,0) += 4.32941757959663e-13/(365*24*3600);
+        cosineAmplitudes[1](2,1) += 5.98812345051549e-14/(365*24*3600);
+        cosineAmplitudes[1](2,2) += 4.4199871466477e-13/(365*24*3600);
+        cosineAmplitudes[1](2,3) += 1.25159028954031e-13/(365*24*3600);
+        cosineAmplitudes[1](2,4) += -5.3726758654485e-14/(365*24*3600);
+        std::map<int, Eigen::MatrixXd> sineAmplitudes;
+        sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
+        sineAmplitudes[1](0,1) +=1.25916272835878e-13/(365*24*3600);
+        sineAmplitudes[1](0,2) += -8.84999663538266e-13/(365*24*3600);
+        sineAmplitudes[1](1,1) += 6.0445217093141e-13/(365*24*3600);
+        sineAmplitudes[1](1,2) += 1.08851817438134e-13/(365*24*3600);
+        sineAmplitudes[1](1,3) += 2.88244592826493e-13/(365*24*3600);
+        sineAmplitudes[1](2,1) += -1.38365049897319e-13/(365*24*3600);
+        sineAmplitudes[1](2,2) += 4.70640224945299e-13/(365*24*3600);
+        sineAmplitudes[1](2,3) += -4.50562269498905e-14/(365*24*3600);
+        sineAmplitudes[1](2,4) += 8.5339608889136e-13/(365*24*3600);
+        std::cout<<"creating settings for poly grav"<<std::endl;
+        std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
+                std::make_shared< PolynomialGravityFieldVariationsSettings >(
+                        cosineAmplitudes, sineAmplitudes, 0.0, 2, 0 );
+
+        gravityFieldVariations.push_back(polynomialGravityFieldVariations);
+
+        std::vector<std::shared_ptr<GravityFieldVariationSettings> > gravityFieldVariationSettings =
+                    gravityFieldVariations;
+        bodySettings.at("Mars")->gravityFieldVariationSettings = gravityFieldVariations;
+
+        SystemOfBodies bodies = createSystemOfBodies<long double, Time>(bodySettings);
+        // Create radiation pressure settings
+        double referenceAreaRadiation = 10.0;
+        double radiationPressureCoefficient = 1.2;
+        std::vector<std::string> occultingBodies = {"Mars"};
+        std::shared_ptr<RadiationPressureInterfaceSettings> radiationPressureSettings =
+                    std::make_shared<CannonBallRadiationPressureInterfaceSettings>(
+                            "Sun", referenceAreaRadiation, radiationPressureCoefficient, occultingBodies);
+        // Set accelerations on Vehicle that are to be taken into account.
+        SelectedAccelerationMap accelerationMap;
+        std::map<std::string, std::vector<std::shared_ptr<AccelerationSettings> > > accelerationsOfVehicle;
+        accelerationsOfVehicle["Sun"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Sun"].push_back(cannonBallRadiationPressureAcceleration());
+        accelerationsOfVehicle["Mercury"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Venus"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Earth"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Mars"].push_back(sphericalHarmonicAcceleration(95, 95));
+        accelerationsOfVehicle["Mars"].push_back(relativisticAccelerationCorrection());
+        accelerationsOfVehicle["Mars"].push_back(aerodynamicAcceleration());
+        accelerationsOfVehicle["Phobos"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Deimos"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Jupiter"].push_back(pointMassGravityAcceleration());
+        accelerationsOfVehicle["Mars"].push_back(std::make_shared<EmpiricalAccelerationSettings>(
+                                                                Eigen::Vector3d::Zero(),
+                                                                Eigen::Vector3d::Zero(),
+                                                                Eigen::Vector3d::Zero()));
+
+        // Set bodies for which initial state is to be estimated and integrated.
+        std::vector<std::string> bodiesToIntegrate;
+        std::string centralBody = "Mars";
+        std::vector<std::string> centralBodies ;
+        for (unsigned int i = 0; i < spacecraftName.size(); i++){
+
+                bodies.at(spacecraftName.at(i))->setRadiationPressureInterface(
+            "Sun", createRadiationPressureInterface(
+                    radiationPressureSettings, spacecraftName.at(i), bodies));
+        // Create aerodynamic coefficients settings
+        Eigen::Vector3d customVector(2.1, 0.0, 0.0);
+        std::shared_ptr<AerodynamicCoefficientSettings> aerodynamicCoefficientSettings =
+        std::make_shared<ConstantAerodynamicCoefficientSettings>(15.0, 2.1 * Eigen::Vector3d::UnitX());
+        bodies.at(spacecraftName.at(i))->setAerodynamicCoefficientInterface(
+        createAerodynamicCoefficientInterface(aerodynamicCoefficientSettings, spacecraftName.at(i), bodies));
+                accelerationMap[spacecraftName.at(i)] = accelerationsOfVehicle;
+                bodiesToIntegrate.push_back(spacecraftName.at(i));
+                centralBodies.push_back(centralBody);
+};
+        // Create acceleration models
+    AccelerationMap accelerationModelMap = createAccelerationModelsMap(bodies, accelerationMap, bodiesToIntegrate,
+                centralBodies);
+    std::cout << "acceleration map created" << std::endl;
+        std::vector<std::shared_ptr<SingleDependentVariableSaveSettings> > dependentVariablesToSave;
+
+        //read in observation times
+        std::vector< double > observationTimesList;
+        for (int t = 0; t<obsEndTimes.size(); ++t)
+        {
+                double start = obsStartTimes[t];
+                double end = obsEndTimes[t];
+                for (double time = start; time < end; time += 10.0) // 10 seconds interval
+                {
+                    observationTimesList.push_back(time);
+                }
+        }
+        std::cout<< "Observation times created" << std::endl;
+        // Retrieve state history from SPICE for each satellite
+        for (unsigned int i = 0; i < spacecraftName.size(); i++) {
+                std::map< long double, Eigen::Matrix < long double, Eigen::Dynamic, 1 > > spiceStateHistory;
+                for ( Time t : observationTimesList )
+                {
+                        spiceStateHistory[ t.getSeconds< long double >() ] =
+                                bodies.getBody( spacecraftName.at(i) )->getStateInBaseFrameFromEphemeris< long double, Time >( t ) -
+                                bodies.getBody( centralBody )->getStateInBaseFrameFromEphemeris< long double, Time >( t );
+                }
+                writeDataMapToTextFile( spiceStateHistory, "stateHistorySpice_" + spacecraftName.at(i) + "_" + fileTag + ".txt", saveDirectory,
+                                        "", 18, 18 );
+        };
+        std::shared_ptr<IntegratorSettings<> >integratorSettings =
+               std::make_shared<RungeKuttaFixedStepSizeSettings<> >( 30, CoefficientSets::rungeKutta87DormandPrince );
+        std::cout<<"Integration settings created"<<std::endl;
+
+        const std::string filenameGrav = "/home/ralkahal/nnew-tudat-tests/jgmro_120d_sha.tab";
+        std::vector<GravityCoefficient> coefficients;
+        // Filter and extract errors up to degree and order 8
+        int maxDegree = 18;
+        int minDegree = 2;
+        std::vector<double> cnmErrors;
+        std::vector<double> snmErrors;
+
+        try {
+                // Load the gravity field file
+                loadGravityFieldFile(filenameGrav, coefficients);
+                extractErrorsWithinRange(coefficients, minDegree, maxDegree, cnmErrors, snmErrors);
+                std::cout<<"size of Cnm errors: " << cnmErrors.size() << std::endl;
+                std::cout<<"size of Snm errors: " << snmErrors.size() << std::endl;
+        } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                exit(1);
+        }
+
+        // Create link ends for observations
+        // Create list of link ends where the ground station is the transmitter and the spacecraft is the receiver
+        std::vector< LinkEnds > stationTransmitterLinkEnds;
+        std::vector< LinkEnds > downlinkLinkEnds_;
+        std::vector< LinkEnds > uplinkLinkEnds_;
+        std::vector< std::string > GroundStations = {  "DSS-26" , "DSS-42", "DSS-61"};
+        for ( std::string groundStation : GroundStations ) {
+                // Define link ends for observations.
+                // for each satellite
+                for (unsigned int i = 0; i < spacecraftName.size(); i++) {
+                        LinkEnds linkEnds;
+                        linkEnds[transmitter] = LinkEndId("Earth", groundStation);
+                        linkEnds[reflector1] = spacecraftName.at(i);
+                        linkEnds[receiver] = LinkEndId("Earth", groundStation);
+                        stationTransmitterLinkEnds.push_back( linkEnds );
+
+                        LinkEnds uplinkLinkEnds;
+                        uplinkLinkEnds[transmitter] = LinkEndId("Earth", groundStation);
+                        uplinkLinkEnds[receiver] = spacecraftName.at(i);
+                        uplinkLinkEnds_.push_back( uplinkLinkEnds );
+
+                        LinkEnds downlinkLinkEnds;
+                        downlinkLinkEnds[receiver] = LinkEndId("Earth", groundStation);
+                        downlinkLinkEnds[transmitter] = spacecraftName.at(i);
+
+                        downlinkLinkEnds_.push_back( downlinkLinkEnds );
+                };
+        }
+        // Define (arbitrary) link ends for each observable
+        std::map< ObservableType, std::vector< LinkEnds > > linkEndsPerObservable;
+
+        linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 0 ] );
+        linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 1 ] );
+        linkEndsPerObservable[ two_way_doppler ].push_back( stationTransmitterLinkEnds[ 2 ] );
+        std::cout<<"link ends created"<<std::endl;
+
+        std::vector< std::shared_ptr< ObservationModelSettings > > observationSettingsList;
+        for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
+        linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
+        {
+                ObservableType currentObservable = linkEndIterator->first;
+
+                std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
+                for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
+                {
+                        observationSettingsList.push_back(
+                        std::make_shared< ObservationModelSettings >(
+                        currentObservable, currentLinkEndsList.at( i ), std::shared_ptr< LightTimeCorrectionSettings >( ) ) );
+                }
+        }
+        std::cout<<"observation settings created"<<std::endl;
+        std::vector< std::shared_ptr< ObservationViabilitySettings > > observationViabilitySettings;
+        for ( std::string groundStation : GroundStations )
+        {
+                for (unsigned int i = 0; i < spacecraftName.size(); i++) {
+                        observationViabilitySettings.push_back( std::make_shared< ObservationViabilitySettings >(
+                        minimum_elevation_angle, std::make_pair( "Earth", groundStation ), "",
+                                        unit_conversions::convertDegreesToRadians( 15.0 ) ) );
+                        observationViabilitySettings.push_back( std::make_shared<ObservationViabilitySettings>(
+                        body_occultation,
+                        std::make_pair(groundStation, spacecraftName.at(i)),
+                        "Mars",
+                        TUDAT_NAN
+                        ));
+                };
+        }
+        std::cout<<"Observation viability settings created"<<std::endl;
+                std::vector< std::shared_ptr< ObservationViabilityCalculator > > viabilityCalculators;
+        for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
+        linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
+        {
+                ObservableType currentObservable = linkEndIterator->first;
+                std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
+                for( unsigned int i = 0; i < currentLinkEndsList.size( ); i++ )
+                {
+                        std::vector< std::shared_ptr< ObservationViabilityCalculator > > calculators =
+                                createObservationViabilityCalculators(bodies, currentLinkEndsList.at(i), currentObservable, observationViabilitySettings);
+                        viabilityCalculators.insert(viabilityCalculators.end(), calculators.begin(), calculators.end());
+                }
+        }
+        std::cout<<"Observation viability calculator created"<<std::endl;
+        // Define the noise functions map with the required type
+        std::map< ObservableType, std::function< Eigen::VectorXd( const double ) > > noiseFunctions;
+
+        // Create observation viability settings and calculators
+        noiseFunctions[ two_way_doppler ] =
+                [=](const double input) -> Eigen::VectorXd {
+                        // Call the original function that returns a double
+                        double noiseValue = utilities::evaluateFunctionWithoutInputArgumentDependency< double, const double >(
+                        createBoostContinuousRandomVariableGeneratorFunction(
+                        tudat::statistics::normal_boost_distribution, { 0.0, twoWayDopplerNoise }, 0.0
+                        ), input
+                        );
+                        // Convert the double to Eigen::VectorXd
+                        Eigen::VectorXd result(1);
+                        result(0) = noiseValue;
+                        return result;
+        };
+        std::cout<<"noise functions created"<<std::endl;
+            //std::string fileTag = "accumul_InverseAprALLGlobalPars_drag_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
+            //                              + "_" + std::to_string(finalTime);
+        std::vector<Eigen::VectorXd> systemInitialStates_;
+        for (unsigned int i = 0; i < spacecraftName.size(); i++) {
+                systemInitialStates_.push_back(spice_interface::getBodyCartesianStateAtEpoch(
+                                 bodiesToIntegrate[ i ], "Mars", "MARSIAU", "NONE", arcStart));
+                std::cout<<"system initial states created"<<std::endl;
+        };
+        Eigen::VectorXd systemInitialStates = Eigen::VectorXd::Zero(6*spacecraftName.size());
+        if (spacecraftName.size() == 1){
+                systemInitialStates = systemInitialStates_.at(0);
+        }
+        else if (spacecraftName.size() == 2){
+                systemInitialStates << systemInitialStates_.at(0), systemInitialStates_.at(1);
+        }
+        else if (spacecraftName.size() == 3){
+                systemInitialStates << systemInitialStates_.at(0), systemInitialStates_.at(1), systemInitialStates_.at(2);
+        }
+        std::cout<<"all system initial states created"<<std::endl;
+                std::shared_ptr< PropagationTerminationSettings > terminationSettings = propagationTimeTerminationSettings(
+                                arcEnd);
+                std::shared_ptr< TranslationalStatePropagatorSettings< double, double> > propagatorSettings = translationalStatePropagatorSettings< double, double >( centralBodies, accelerationModelMap, bodiesToIntegrate,
+                                                                                                                                                              systemInitialStates, arcStart, integratorSettings, terminationSettings, cowell, dependentVariablesToSave);
+                SingleArcDynamicsSimulator< > dynamicsSimulator(
+                                        bodies, propagatorSettings );
+                std::map< double, Eigen::VectorXd > stateHistory = dynamicsSimulator.getEquationsOfMotionNumericalSolution( );
+                writeDataMapToTextFile( stateHistory, "stateHistoryPropagation_arc_"+ fileTag + ".txt", saveDirectory,
+                                "", 18, 18 );
+                std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
+                                    getInitialStateParameterSettings< double, double  >( propagatorSettings, bodies);
+        for (unsigned int i = 0; i < spacecraftName.size(); i++) {
+                parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName.at(i),constant_drag_coefficient));// initial_times_list_drag ));
+        };
+                //std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
+
+        //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+        //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+        //parameterNames.push_back( std::make_shared<EmpiricalAccelerationEstimatableParameterSettings >(spacecraftName,"Mars", empiricalAccelerationComponents ) );
+
+        std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
+
+        empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
+        empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
+        empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+        empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
+        empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
+        empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+
+        parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(spacecraftName.at(0),"Mars", empiricalAccelerationComponents, initial_times_list_emp ) );
+
+        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                                         2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
+        parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
+                                              2, 1, 18, 18, "Mars", spherical_harmonics_sine_coefficient_block ) );
+
+        std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
+                //periodic gravity field
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
+        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
+        cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
+
+        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 2, 0) );
+        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 3, 0 ) );
+        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 4, 0 ) );
+        cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 5, 0 ) );
+
+        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 2, 0) );
+        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
+        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 3, 0 ) );
+        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 4, 0 ) );
+        cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 5, 0 ) );
+        std::cout<<" cosine block indices per period size"<<cosineBlockIndicesPerPeriod[0].size()<<std::endl;
+
+        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPeriod;
+        parameterNames.push_back( std::make_shared< PeriodicGravityFieldVariationEstimatableParameterSettings >(
+                                centralBody, cosineBlockIndicesPerPeriod, sineBlockIndicesPerPeriod ) );
+
+        std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPower;
+
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 0 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 1 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
+        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
+        std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 3, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 1 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
+        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
+        //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
+        parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
+                "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
+
+
+        std::shared_ptr< estimatable_parameters::EstimatableParameterSet< double > > parametersToEstimate =
+                    createParametersToEstimate< double, double >( parameterNames, bodies, propagatorSettings );
+
+        std::cout<<"parameters to estimate created"<<std::endl;
+
+        // Create orbit determination object.
+        OrbitDeterminationManager< double, double > orbitDeterminationManager =
+                OrbitDeterminationManager< double, double >(
+                        bodies, parametersToEstimate,
+                        observationSettingsList, propagatorSettings,true );
+        std::cout<<"orbit determination manager created"<<std::endl;
+        Eigen::Matrix< double, Eigen::Dynamic, 1 > initialParameterEstimate =
+                    parametersToEstimate->template getFullParameterValues< double >( );
+
+        std::vector< std::shared_ptr< ObservationSimulationSettings< double > > > measurementSimulationInput;
+        for( std::map< ObservableType, std::vector< LinkEnds > >::iterator linkEndIterator = linkEndsPerObservable.begin( );
+                linkEndIterator != linkEndsPerObservable.end( ); linkEndIterator++ )
+        {
+                ObservableType currentObservable = linkEndIterator->first;
+                std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
+                //std::function< double( const double ) > noiseFunction = noiseFunctions[currentObservable];
+                for( unsigned int currLinkEnd = 0; currLinkEnd < currentLinkEndsList.size( ); currLinkEnd++ )
+                {
+                        measurementSimulationInput.push_back(
+                                std::make_shared< TabulatedObservationSimulationSettings< > >(
+                                                currentObservable, currentLinkEndsList[ currLinkEnd ], observationTimesList, receiver, observationViabilitySettings, noiseFunctions[currentObservable]) );
+                }
+        }
+
+        // Simulate observations.
+        std::shared_ptr< ObservationCollection< > > observationsAndTimes = simulateObservations< double, double >(
+        measurementSimulationInput, orbitDeterminationManager.getObservationSimulators( ), bodies );
+        std::cout<<"observations and times created"<<std::endl;
+
+        Eigen::Matrix< double, Eigen::Dynamic, 1 > truthParameters = initialParameterEstimate;
+        int numberOfParameters = initialParameterEstimate.rows( );
+
+        printEstimatableParameterEntries( parametersToEstimate );
+        int lengthOfTimeListEmp = initial_times_list_emp.size();
+        //int numberOfLocalParameters = 7;//+2;
+        int numberOfLocalParameters = 7*spacecraftName.size()+lengthOfTimeListEmp*6;
+
+        const int DIAGONALS = numberOfLocalParameters;
+        Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
+        double aprioriuncertainty =1.0/(10*10);
+        for (int i =1; i<= spacecraftName.size(); ++i){
+                matrix(i*6,i*6) = aprioriuncertainty;
+
+        }
+        double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
+        for (int i = 7; i < numberOfLocalParameters - 3*lengthOfTimeListEmp; ++i) {
+                matrix(i,i) = aprioriuncertainty1;
+        }
+        double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
+        for (int i = numberOfLocalParameters - 3*lengthOfTimeListEmp; i < numberOfLocalParameters; ++i) {
+                matrix(i,i) = aprioriuncertainty2;
+        }
+        //double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
+        //matrix(7,7) = aprioriuncertainty1;
+        //double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
+        //matrix(8,8) = aprioriuncertainty2;
+        for (int j = 0; j < cnmErrors.size(); ++j) {
+                matrix(j+DIAGONALS,j+DIAGONALS) = 1.0/(cnmErrors[j]*cnmErrors[j]);
+        }
+        std::cout<<"matrix filled with Cnm errors size: "<< cnmErrors.size()+DIAGONALS <<std::endl;
+        for (int j= 0; j < snmErrors.size(); ++j) {
+                matrix(j+DIAGONALS+cnmErrors.size(),j+DIAGONALS+cnmErrors.size()) = 1.0/(snmErrors[j]*snmErrors[j]);
+        }
+
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+3, DIAGONALS+cnmErrors.size()+snmErrors.size()+3) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+4, DIAGONALS+cnmErrors.size()+snmErrors.size()+4) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+5, DIAGONALS+cnmErrors.size()+snmErrors.size()+5) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+6, DIAGONALS+cnmErrors.size()+snmErrors.size()+6) = 1.0/(0.010E-09*0.010E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+7, DIAGONALS+cnmErrors.size()+snmErrors.size()+7) = 1.0/(0.010E-09*0.010E-09);
+
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+8, DIAGONALS+cnmErrors.size()+snmErrors.size()+8) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+9, DIAGONALS+cnmErrors.size()+snmErrors.size()+9) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+10, DIAGONALS+cnmErrors.size()+snmErrors.size()+10) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+11, DIAGONALS+cnmErrors.size()+snmErrors.size()+11) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+12, DIAGONALS+cnmErrors.size()+snmErrors.size()+12) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+13, DIAGONALS+cnmErrors.size()+snmErrors.size()+13) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+14, DIAGONALS+cnmErrors.size()+snmErrors.size()+14) = 1.0/(0.010E-09*0.010E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+15, DIAGONALS+cnmErrors.size()+snmErrors.size()+15) = 1.0/(0.010E-09*0.010E-09);
+
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+16, DIAGONALS+cnmErrors.size()+snmErrors.size()+16) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+17, DIAGONALS+cnmErrors.size()+snmErrors.size()+17) = 1.0/(0.016E-09*0.016E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+18, DIAGONALS+cnmErrors.size()+snmErrors.size()+18) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+19, DIAGONALS+cnmErrors.size()+snmErrors.size()+19) = 1.0/(0.011E-09*0.011E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+20, DIAGONALS+cnmErrors.size()+snmErrors.size()+20) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+21, DIAGONALS+cnmErrors.size()+snmErrors.size()+21) = 1.0/(0.101E-10*0.101E-10);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+22, DIAGONALS+cnmErrors.size()+snmErrors.size()+22) = 1.0/(0.010E-09*0.010E-09);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+23, DIAGONALS+cnmErrors.size()+snmErrors.size()+23) = 1.0/(0.010E-09*0.010E-09);
+
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;///(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;///(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;///(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;///(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;///(0.1E-19*0.1E-19);
+
+	P0_matrix = matrix;
+        saveParamCounts(saveDirectory, numberOfLocalParameters, 0);
+	std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
+                                std::make_shared< CovarianceAnalysisInput< double, double > >(
+                                observationsAndTimes,matrix );
+        std::cout<<"covariance input created"<<std::endl;
+        std::map< observation_models::ObservableType, double > weightPerObservable;
+        weightPerObservable[ two_way_doppler ] = std::pow(twoWayDopplerNoise, -2);
+
+        covarianceInput->setConstantPerObservableWeightsMatrix( weightPerObservable );
+
+
+        std::shared_ptr< CovarianceAnalysisOutput< double, double > > covarianceOutput = orbitDeterminationManager.computeCovariance(
+                    covarianceInput );
+        std::cout<<"covariance output created"<<std::endl;
+        unnormalizedDesignMatrix = covarianceOutput->getUnnormalizedDesignMatrix( );
+        normalizedDesignMatrix = covarianceOutput->getNormalizedDesignMatrix( );
+        weightMatrixDiagonal = covarianceOutput->weightsMatrixDiagonal_;
+
+	normalizationFactor = covarianceOutput->designMatrixTransformationDiagonal_;
+        covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );;
+
+}
+
+int main(int argc, char* argv[]){
+
+    if(argc < 2){
+	std::cerr<< "Usage: " << argv[0] << "--arc-index <index> [--output-dir <dir>]" << std::endl;
+	return EXIT_FAILURE;
+    }
+
+    std::string configFilePath;
+    std::string outputDir = ".";
+
+    for (int i = 1; i<argc; ++i)
+    {
+	    std::string arg = argv[i];
+	    if (arg == "--config" && i + 1 <argc)
+	    {
+	        configFilePath = argv[++i];
+	    }
+	    else if (arg == "--output-dir" && i + 1 <argc)
+	    {
+	        outputDir = argv[++i];
+	    }
+    }
+    try
+    {
+        ensureDirectoryExists(outputDir);
+    }
+    catch(const std::exception& ex)
+    {
+        std::cerr << "Error: " << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+    if (configFilePath.empty())
+    {
+        std::cerr << "Error: --config must be provided\n";
+        return EXIT_FAILURE;
+    }
+    ArcConfig config;
+    try
+    {
+        config = loadArcConfig(configFilePath);
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Failed to load config: " << e.what() << "\n";
+        return EXIT_FAILURE;
+    }
+
+    std::string mkdirCmd = "mkdir -p " + outputDir;
+    std::system(mkdirCmd.c_str());
+    int arcIndex = config.arcIndex;
+    std::cout<< "Running arc index: "<< arcIndex <<std::endl;
+
+    Eigen::MatrixXd covarianceMatrix, unnormalizedDesignMatrix, normalizedDesignMatrix, P0_matrix;
+    Eigen::VectorXd weightMatrixDiagonal, normalizationFactor;
+    runCovarianceAnalysisForArc(config, outputDir, covarianceMatrix, unnormalizedDesignMatrix, normalizedDesignMatrix,normalizationFactor, weightMatrixDiagonal, P0_matrix);
+
+
+    // save results
+    try
+    {
+	saveMatrixBinary(outputDir + "/covariance_matrix.bin", covarianceMatrix);
+	saveMatrixBinary(outputDir + "/unnormalized_Design_Matrix.bin", unnormalizedDesignMatrix);
+        saveMatrixBinary(outputDir + "/normalized_Design_Matrix.bin", normalizedDesignMatrix);
+        saveMatrixBinary(outputDir + "/P0_matrix.bin", P0_matrix);
+        saveVectorBinary(outputDir + "/weight_matrix_diagonal.bin", weightMatrixDiagonal);
+	saveVectorBinary(outputDir + "/normalization_factor.bin", normalizationFactor);
+
+    }
+    catch (const std::exception& ex)
+    {
+	std::cerr << "Error saving matrices: " << ex.what() << std::endl;
+	return EXIT_FAILURE;
+    }
+
+    std::cout<< "Arc  "<< arcIndex << " completed successfully!" <<std::endl;
+    return EXIT_SUCCESS;
+}

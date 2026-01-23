@@ -1083,10 +1083,11 @@ void arcLengthRuns( double hoursperday, double initialTime, double finalTime, in
 int main() {
         int iterationNumber = 6;
         //std::vector<int> arcLengths = {1, 3, 5, 10, 30};
-        std::vector<int> arcLengths = {3, 5};
+        //std::vector<int> arcLengths = {3, 5};
+	std::vector<int> arcLengths = {1};
 	//std::vector<int> number_of_arcs = {60, 20, 12, 6, 2};
         std::vector<int> number_of_arcs = {5, 3};
-	std::vector<double>  hoursperday = {10.0,  24.0};
+	std::vector<double> hoursperday = {10.0,  24.0};
         std::vector<int> ihoursperday = {10, 24};
         //std::vector<double>  initialTimes = {0.0,  86400.0 * 360};
         std::vector<double>  initialTimes = {-240.0*86400.0, -180*86400.0, 0.0, 180.0*86400.0 , 86400.0 * 360};

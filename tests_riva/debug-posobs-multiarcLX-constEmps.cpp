@@ -215,7 +215,7 @@ int main( ) {
 */
     //std::string saveDirectory = "/Users/ralkahal/OneDrive - Delft University of Technology/new-tudat-tests/";
     std::string saveDirectory = "/home/ralkahal/new-tudat-tests/paperTests_august/";
-    std::string fileTag = "observspice-newmass+matrix-RK78-60s-multiarc5-SRP-drag-per-arc-gravity-empAcc-perRev-constrained";
+    std::string fileTag = "observspice-newmass+matrix-RK78-60s-multiarc5-SRP-drag-per-arc-gravity-empAcc-perArc-constrained";
 
 
     std::ofstream outFile(saveDirectory + "output_" + fileTag + ".txt");
@@ -232,10 +232,10 @@ int main( ) {
     double observationsSamplingTime = 60.0;
     double buffer = 20.0 * epehemeridesTimeStep;
     double arcDuration = 5.0 * 86400.0;//2.0E4;
-    std::string dragEst = "per-rev";//"per-rev";
+    std::string dragEst = "per-arc";//"per-rev";
     std::string empEst = "per-arc";
 
-    double ndays = 3.0;
+    double ndays = 5.0;
     double hoursperdaydrag = 2.0;
     double hoursperday = 10.0;
     int iterationNumber = 5;
@@ -618,11 +618,11 @@ int main( ) {
     std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
 
     empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
-    empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
     empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
-    empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
+    //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( constant_empirical );
     //empiricalAccelerationComponents[ radial_empirical_acceleration_component ].push_back( sine_empirical );
     //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
@@ -635,7 +635,7 @@ int main( ) {
 
     parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(
             spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_drag ) );
- 
+
     parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
                                          2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
     parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
@@ -737,7 +737,7 @@ int main( ) {
         }
     // set a priori to the drag coefficients
     int DIAGONALS = numberOfIntegrationArcs*6 + numberOfIntegrationArcs*2;
-    int numberOfEmpPars = 6*(initial_times_list_drag.size());
+    int numberOfEmpPars = 2*(initial_times_list_drag.size());
     //double aprioriuncertainty =1.0/(10);
     double aprioriuncertainty =1.0/(10*10);
     //double aprioriuncertainty = 1.0;
@@ -755,11 +755,11 @@ int main( ) {
     //DIAGONALS = DIAGONALS+numberOfEmpPars;
     int numberOfLocalParameters = DIAGONALS+numberOfEmpPars;
     double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
-    for (int i = DIAGONALS; i < numberOfLocalParameters - 3*(initial_times_list_drag.size()) ; ++i) {
+    for (int i = DIAGONALS; i < numberOfLocalParameters - (initial_times_list_drag.size()) ; ++i) {
         matrix(i,i) = aprioriuncertainty1;
     }
     double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
-    for (int i = numberOfLocalParameters - 3*(initial_times_list_drag.size()); i < numberOfLocalParameters; ++i) {
+    for (int i = numberOfLocalParameters - (initial_times_list_drag.size()); i < numberOfLocalParameters; ++i) {
         matrix(i,i) = aprioriuncertainty2;
     }
     DIAGONALS = DIAGONALS+numberOfEmpPars;

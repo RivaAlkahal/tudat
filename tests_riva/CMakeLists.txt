@@ -76,6 +76,10 @@ TUDAT_ADD_EXECUTABLE(debug-posobs-multiarcLX
         "debug-posobs-multiarcLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+TUDAT_ADD_EXECUTABLE(debug-posobs-multiarcLX-constEmps
+        "debug-posobs-multiarcLX-constEmps.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
 TUDAT_ADD_EXECUTABLE(debug-posobs-propagation-multiarcLX
         "debug-posobs-propagation-multiarcLX.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
@@ -196,6 +200,57 @@ TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo_new
 add_definitions(-DESIGN_USE_THREADS)
 find_package(Threads REQUIRED)
 target_link_libraries(covAnalysis_singleArcEstim_saveOnGo_new PRIVATE Threads::Threads)
+TUDAT_ADD_EXECUTABLE(computeCovariances.cpp
+        "computeCovariances.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+add_definitions(-DESIGN_USE_THREADS)
+find_package(Threads REQUIRED)
+target_link_libraries(computeCovariances.cpp PRIVATE Threads::Threads)
+
+
+TUDAT_ADD_EXECUTABLE(computeCovariance_test
+        "computeCovariance_test.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+add_definitions(-DESIGN_USE_THREADS)
+find_package(Threads REQUIRED)
+target_link_libraries(computeCovariance_test PRIVATE Threads::Threads)
+find_package(OpenMP REQUIRED)
+target_link_libraries(computeCovariance_test PRIVATE OpenMP::OpenMP_CXX)
+
+TUDAT_ADD_EXECUTABLE(computeCovariances_test_skipping
+        "computeCovariances_test_skipping.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+add_definitions(-DESIGN_USE_THREADS)
+find_package(Threads REQUIRED)
+target_link_libraries(computeCovariances_test_skipping PRIVATE Threads::Threads)
+find_package(OpenMP REQUIRED)
+target_link_libraries(computeCovariances_test_skipping PRIVATE OpenMP::OpenMP_CXX)
+
+
+TUDAT_ADD_EXECUTABLE(computeCovariance_TestMultiSat
+        "computeCovariance_TestMultiSat.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+add_definitions(-DESIGN_USE_THREADS)
+find_package(Threads REQUIRED)
+target_link_libraries(computeCovariance_TestMultiSat PRIVATE Threads::Threads)
+find_package(OpenMP REQUIRED)
+target_link_libraries(computeCovariance_TestMultiSat PRIVATE OpenMP::OpenMP_CXX)
+
+
+TUDAT_ADD_EXECUTABLE(computeCovariances_ForEmps
+        "computeCovariances_ForEmps.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+add_definitions(-DESIGN_USE_THREADS)
+find_package(Threads REQUIRED)
+target_link_libraries(computeCovariances_ForEmps PRIVATE Threads::Threads)
+find_package(OpenMP REQUIRED)
+target_link_libraries(computeCovariances_ForEmps PRIVATE OpenMP::OpenMP_CXX)
+
 #TUDAT_ADD_EXECUTABLE(covAnalysis_singleArcEstim_saveOnGo_Empiricals.cpp
 #        "covAnalysis_singleArcEstim_saveOnGo_Empiricals.cpp"
 #        ${Tudat_ESTIMATION_LIBRARIES}
@@ -221,11 +276,42 @@ TUDAT_ADD_EXECUTABLE(placeHolder.cpp
         "placeHolder.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
+target_include_directories(placeHolder.cpp PRIVATE /home/ralkahal/tudat-bundle/external/json)
+
+TUDAT_ADD_EXECUTABLE(parallelArcProcess
+        "parallelArcProcess.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+target_include_directories(parallelArcProcess PRIVATE /home/ralkahal/tudat-bundle/external/json)
+
+TUDAT_ADD_EXECUTABLE(parallelArcProcessVikings
+        "parallelArcProcessVikings.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+target_include_directories(parallelArcProcessVikings PRIVATE /home/ralkahal/tudat-bundle/external/json)
+
+TUDAT_ADD_EXECUTABLE(parallelArcProcessMultiSat
+        "parallelArcProcessMultiSat.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+target_include_directories(parallelArcProcessMultiSat PRIVATE /home/ralkahal/tudat-bundle/external/json)
+
+TUDAT_ADD_EXECUTABLE(parallelArcProcessEmpiricals
+        "parallelArcProcessEmpiricals.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+target_include_directories(parallelArcProcessEmpiricals PRIVATE /home/ralkahal/tudat-bundle/external/json)
+
+TUDAT_ADD_EXECUTABLE(computeCovariances
+        "computeCovariances.cpp"
+        ${Tudat_ESTIMATION_LIBRARIES}
+)
+
 TUDAT_ADD_EXECUTABLE(generate_configs
         "generate_configs.cpp"
         ${Tudat_ESTIMATION_LIBRARIES}
 )
-target_include_directories(generate_configs PRIVATE external/json)
+target_include_directories(generate_configs PRIVATE /home/ralkahal/tudat-bundle/external/json)
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(covAnalysis_singleArcEstim_testinv PRIVATE OpenMP::OpenMP_CXX)

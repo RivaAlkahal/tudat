@@ -1,4 +1,7 @@
 //
+// Created by ralkahal on 4-9-25.
+//
+//
 // Created by ralkahal on 06-08-25.
 //
 
@@ -262,6 +265,11 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
 
 
     spice_interface::loadStandardSpiceKernels( );
+        //load the kernels for Viking1
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/vo1_rcon.bsp" );
+        spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mar033.bsp" );
+        //spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
+
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map1.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map3.bsp" );
@@ -337,7 +345,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     std::vector<double> obsEndTimes = config.obsEndTimes;
     double arcLength = arcEnd - arcStart;
     double arcDuration = arcLength * 86400.0; // Convert days to seconds
-    double twoWayDopplerNoise = 0.0001;
     double initialEphemerisTime = arcStart-120.0;
     double finalEphemerisTime = arcEnd+120.0;
     double epehemeridesTimeStep = 60.0;
@@ -372,7 +379,31 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
 
     std::string baseFrameOrientation = "MARSIAU";
     std::string baseFrameOrigin = "SSB";
+        std::string spacecraftName;
+        double spacecraftMass;
+        double twoWayDopplerNoise;
+        if (arcStart < -20*365*86400.0)
+        {
+                spacecraftName = "VIKING 1 ORBITER";
+                spacecraftMass = 2339.0;
+                twoWayDopplerNoise = 0.001;
 
+
+        } else if (arcStart > 40*365*86400.0)
+        {
+                spacecraftName = "MGS";
+                spacecraftMass = 1030.5;
+                twoWayDopplerNoise = 0.00001;
+
+
+        }
+
+	else {
+                spacecraftName = "MGS";
+                spacecraftMass = 1030.5;
+                twoWayDopplerNoise = 0.0001;
+
+        }
     BodyListSettings bodySettings;
     bodySettings = getDefaultBodySettings(
                     bodiesToCreate, initialEphemerisTime - buffer, finalEphemerisTime + buffer,
@@ -382,14 +413,14 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
     bodySettings.at( "Mars" )->atmosphereSettings = marsDtmAtmosphereSettings( filename, 3378.0E3);
 
-    std::string spacecraftName = "MGS";
+
     bodySettings.addSettings( spacecraftName );
     bodySettings.at( spacecraftName )->ephemerisSettings =
                 std::make_shared< InterpolatedSpiceEphemerisSettings >(
                         initialEphemerisTime - buffer, finalEphemerisTime + buffer,
                         ephemerisTimeStepSpacecraft, baseFrameOrigin, baseFrameOrientation,
                         std::make_shared< interpolators::LagrangeInterpolatorSettings >( 8 ), spacecraftName );
-    bodySettings.at( spacecraftName )->constantMass = 1030.5;
+    bodySettings.at( spacecraftName )->constantMass = spacecraftMass;
     // Set gravity field variations
     std::vector< std::shared_ptr< GravityFieldVariationSettings > > gravityFieldVariations;
 
@@ -464,8 +495,8 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
 
     // Set polynomial gravity field variation
     std::map<int, Eigen::MatrixXd> cosineAmplitudes;
-    cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
-    //cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 10, 11 >::Zero( );
+    //cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
+    cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 10, 11 >::Zero( );
     //nVec Root 800 km depth
     /*
     cosineAmplitudes[ 1 ]( 0, 0 ) += -7.00583559071078e-13/(365*24*3600);
@@ -504,7 +535,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     cosineAmplitudes[1](2,2) += -1.8629e-13/(365*24*3600);
     cosineAmplitudes[1](2,3) += -1.0727e-14/(365*24*3600);
     cosineAmplitudes[1](2,4) += 2.2612e-14/(365*24*3600);
-    /*
+    
     cosineAmplitudes[1](3,0) += 7.4876e-15/(365*24*3600);
     cosineAmplitudes[1](3,1) += -6.1070e-14/(365*24*3600);
     cosineAmplitudes[1](3,2) += 7.0067e-15/(365*24*3600);
@@ -561,10 +592,10 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     cosineAmplitudes[1](8,8) += -4.1377e-14/(365*24*3600);
     cosineAmplitudes[1](8,9) += -4.0107e-15/(365*24*3600);
     cosineAmplitudes[1](8,10) += -3.3917e-14/(365*24*3600);
-    */
+    
     std::map<int, Eigen::MatrixXd> sineAmplitudes;
-    sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
-    /*sineAmplitudes[1](0,1) +=1.25916272835878e-13/(365*24*3600);
+    /*sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
+    sineAmplitudes[1](0,1) +=1.25916272835878e-13/(365*24*3600);
     sineAmplitudes[1](0,2) += -8.84999663538266e-13/(365*24*3600);
     sineAmplitudes[1](1,1) += 6.0445217093141e-13/(365*24*3600);
     sineAmplitudes[1](1,2) += 1.08851817438134e-13/(365*24*3600);
@@ -574,7 +605,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     sineAmplitudes[1](2,3) += -4.50562269498905e-14/(365*24*3600);
     sineAmplitudes[1](2,4) += 8.5339608889136e-13/(365*24*3600);
     */
-    //sineAmplitudes[ 1 ] = Eigen::Matrix< double, 10, 11 >::Zero( );
+    sineAmplitudes[ 1 ] = Eigen::Matrix< double, 10, 11 >::Zero( );
     sineAmplitudes[1](0,1) += -3.5129e-14/(365*24*3600);
     sineAmplitudes[1](0,2) += 4.6841e-13/(365*24*3600);
     sineAmplitudes[1](1,1) += -3.6292e-13/(365*24*3600);
@@ -585,7 +616,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     sineAmplitudes[1](2,2) += -1.9839e-13/(365*24*3600);
     sineAmplitudes[1](2,3) += 3.8676e-15/(365*24*3600);
     sineAmplitudes[1](2,4) += -3.5973e-13/(365*24*3600);
-/*
+
     sineAmplitudes[1](3,1) += 1.4111e-13/(365*24*3600);
     sineAmplitudes[1](3,2) += 7.4570e-15/(365*24*3600);
     sineAmplitudes[1](3,3) += 5.6298e-14/(365*24*3600);
@@ -636,8 +667,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     sineAmplitudes[1](8,8) += -5.2279e-15/(365*24*3600);
     sineAmplitudes[1](8,9) += 6.7806e-15/(365*24*3600);
     sineAmplitudes[1](8,10) += -2.3341e-14/(365*24*3600);
-*/
-std::cout<<"creating settings for poly grav"<<std::endl;
+    std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
             std::make_shared< PolynomialGravityFieldVariationsSettings >(
                     cosineAmplitudes, sineAmplitudes, 0.0, 2, 0 );
@@ -650,8 +680,8 @@ std::cout<<"creating settings for poly grav"<<std::endl;
 
     SystemOfBodies bodies = createSystemOfBodies<long double, Time>(bodySettings);
         // Create radiation pressure settings
-    double referenceAreaRadiation = 15.0;
-    double radiationPressureCoefficient = 2.1;
+    double referenceAreaRadiation = 10.0;
+    double radiationPressureCoefficient = 1.2;
     std::vector<std::string> occultingBodies = {"Mars"};
     std::shared_ptr<RadiationPressureInterfaceSettings> radiationPressureSettings =
                 std::make_shared<CannonBallRadiationPressureInterfaceSettings>(
@@ -979,7 +1009,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
-	/*
+        	
 	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 1 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 2 ) );
@@ -1035,7 +1065,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 8 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 9 ) );
 	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 10 ) );
-*/
+
         std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
@@ -1046,7 +1076,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
-/*
+
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 1 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 2 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 3 ) );
@@ -1096,7 +1126,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
 	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 7 ) );
 	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair(10, 8 ) );
 	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 9 ) );
-*/
+
         //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
         parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
                 "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
@@ -1167,7 +1197,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         for (int j= 0; j < snmErrors.size(); ++j) {
                 matrix(j+DIAGONALS+cnmErrors.size(),j+DIAGONALS+cnmErrors.size()) = 1.0/(snmErrors[j]*snmErrors[j]);
         }
-/*
+
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
@@ -1200,7 +1230,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;///(0.1E-19*0.1E-19);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;///(0.1E-19*0.1E-19);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;///(0.1E-19*0.1E-19);
-*/        
+
 	P0_matrix = matrix;
         saveParamCounts(saveDirectory, numberOfLocalParameters, 0);
 	std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
