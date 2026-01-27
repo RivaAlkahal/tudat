@@ -2,14 +2,6 @@
 // Created by ralkahal on 14-10-25.
 //
 //
-// Created by ralkahal on 16-9-25.
-//
-//
-// Created by ralkahal on 4-9-25.
-//
-//
-// Created by ralkahal on 06-08-25.
-//
 
 #include <iostream>
 #include <thread>
@@ -158,60 +150,6 @@ void extractErrorsWithinRange(
 }
 
 
-// Function to compute the cross product of position and velocity and store it in a map
-std::map<double, Eigen::VectorXd> computeCrossProduct(const std::map<double, Eigen::VectorXd>& stateHistory) {
-        std::map<double, Eigen::VectorXd> crossProductMap;
-
-        for (const auto& [time, stateVector] : stateHistory) {
-                // Ensure the state vector has exactly 6 elements (3 for position, 3 for velocity)
-                if (stateVector.size() == 6) {
-                        // Extract position and velocity vectors
-                        Eigen::Vector3d position = stateVector.head(3);
-                        Eigen::Vector3d velocity = stateVector.tail(3);
-
-                        // Compute the cross product
-                        Eigen::Vector3d crossProduct = position.cross(velocity);
-
-                        // Store the result in the map with the time as the key
-                        crossProductMap[time] = crossProduct;
-                } else {
-                        std::cerr << "Warning: State vector at time " << time << " does not have exactly 6 elements." << std::endl;
-                        crossProductMap[time] = Eigen::Vector3d::Zero();  // Placeholder if state vector is not size 6
-                }
-        }
-
-        return crossProductMap;
-}
-// Example function to compute dot products for a map of vectors
-std::map<double, double> computeDotProductMap(const std::map<double, Eigen::VectorXd>& vectorMap1, const std::map<double, Eigen::VectorXd>& vectorMap2) {
-        std::map<double, double> dotProductMap;
-
-        for (const auto& [time, vector1] : vectorMap1) {
-                // Ensure the time key exists in both maps
-                if (vectorMap2.find(time) != vectorMap2.end()) {
-                        const Eigen::VectorXd& vector2 = vectorMap2.at(time);
-                        // Compute the dot product
-                        dotProductMap[time] = vector1.dot(vector2);
-
-                } else {
-                        std::cerr << "Warning: Time key " << time << " not found in both maps." << std::endl;
-                }
-        }
-
-        return dotProductMap;
-}
-std::map<double, double> computeNorms(const std::map<double, Eigen::VectorXd>& relativePos) {
-        std::map<double, double> norms;
-
-        for (const auto& [key, vector] : relativePos) {
-                // Calculate the norm of the vector (last 3 columns)
-                double norm = vector.norm();
-                norms[key] = norm;
-        }
-
-        return norms;
-}
-
 
 void ensureDirectoryExists(const std::string& path)
 {
@@ -273,7 +211,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         //load the kernels for Viking1
         spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/vo1_rcon.bsp" );
         spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mar033.bsp" );
-        //spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
 
         spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map1.bsp" );
         spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_map2.bsp" );
@@ -542,7 +479,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         std::vector<double> initial_times_list_emp;
         for (double time =arcStart +buffer; time <= arcEnd-buffer; time += step_size) {
                 if (arcEnd-time < step_size) {
-                        //initial_times_list_emp.push_back(arcEndTimesToEstimate.at(i));
                         break;
                 }
                 initial_times_list_emp.push_back(time);
@@ -890,8 +826,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
                         return result;
         };
         std::cout<<"noise functions created"<<std::endl;
-            //std::string fileTag = "accumul_InverseAprALLGlobalPars_drag_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
-            //                              + "_" + std::to_string(finalTime);
         std::vector<Eigen::VectorXd> systemInitialStates_;
         for (unsigned int i = 0; i < spacecraftName.size(); i++) {
                 systemInitialStates_.push_back(spice_interface::getBodyCartesianStateAtEpoch(
@@ -921,14 +855,9 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
                 std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
                                     getInitialStateParameterSettings< double, double  >( propagatorSettings, bodies);
         for (unsigned int i = 0; i < spacecraftName.size(); i++) {
-                parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName.at(i),constant_drag_coefficient));// initial_times_list_drag ));
+                parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName.at(i),constant_drag_coefficient));
         };
-                //std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
-
-        //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-        //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-        //parameterNames.push_back( std::make_shared<EmpiricalAccelerationEstimatableParameterSettings >(spacecraftName,"Mars", empiricalAccelerationComponents ) );
-
+                
         std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
 
         empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
@@ -948,13 +877,11 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
                 //periodic gravity field
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
 
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 5, 0 ) );
@@ -994,7 +921,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
-        //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
         parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
                 "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
 
@@ -1019,7 +945,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         {
                 ObservableType currentObservable = linkEndIterator->first;
                 std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
-                //std::function< double( const double ) > noiseFunction = noiseFunctions[currentObservable];
                 for( unsigned int currLinkEnd = 0; currLinkEnd < currentLinkEndsList.size( ); currLinkEnd++ )
                 {
                         measurementSimulationInput.push_back(
@@ -1038,7 +963,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
 
         printEstimatableParameterEntries( parametersToEstimate );
         int lengthOfTimeListEmp = initial_times_list_emp.size();
-        //int numberOfLocalParameters = 7;//+2;
         int numberOfLocalParameters = 7*spacecraftName.size()+lengthOfTimeListEmp*6;
 
         const int DIAGONALS = numberOfLocalParameters;
@@ -1056,10 +980,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         for (int i = numberOfLocalParameters - 3*lengthOfTimeListEmp; i < numberOfLocalParameters; ++i) {
                 matrix(i,i) = aprioriuncertainty2;
         }
-        //double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
-        //matrix(7,7) = aprioriuncertainty1;
-        //double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
-        //matrix(8,8) = aprioriuncertainty2;
         for (int j = 0; j < cnmErrors.size(); ++j) {
                 matrix(j+DIAGONALS,j+DIAGONALS) = 1.0/(cnmErrors[j]*cnmErrors[j]);
         }
@@ -1095,15 +1015,15 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+22, DIAGONALS+cnmErrors.size()+snmErrors.size()+22) = 1.0/(0.010E-09*0.010E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+23, DIAGONALS+cnmErrors.size()+snmErrors.size()+23) = 1.0/(0.010E-09*0.010E-09);
 
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;///(0.1E-19*0.1E-19);
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;
 
-	P0_matrix = matrix;
+        P0_matrix = matrix;
         saveParamCounts(saveDirectory, numberOfLocalParameters, 0);
-	std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
+        std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =
                                 std::make_shared< CovarianceAnalysisInput< double, double > >(
                                 observationsAndTimes,matrix );
         std::cout<<"covariance input created"<<std::endl;
@@ -1120,7 +1040,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         normalizedDesignMatrix = covarianceOutput->getNormalizedDesignMatrix( );
         weightMatrixDiagonal = covarianceOutput->weightsMatrixDiagonal_;
 
-	normalizationFactor = covarianceOutput->designMatrixTransformationDiagonal_;
+        normalizationFactor = covarianceOutput->designMatrixTransformationDiagonal_;
         covarianceMatrix = covarianceOutput->getUnnormalizedCovarianceMatrix( );;
 
 }

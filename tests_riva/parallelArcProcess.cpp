@@ -149,61 +149,6 @@ void extractErrorsWithinRange(
 }
 
 
-// Function to compute the cross product of position and velocity and store it in a map
-std::map<double, Eigen::VectorXd> computeCrossProduct(const std::map<double, Eigen::VectorXd>& stateHistory) {
-        std::map<double, Eigen::VectorXd> crossProductMap;
-
-        for (const auto& [time, stateVector] : stateHistory) {
-                // Ensure the state vector has exactly 6 elements (3 for position, 3 for velocity)
-                if (stateVector.size() == 6) {
-                        // Extract position and velocity vectors
-                        Eigen::Vector3d position = stateVector.head(3);
-                        Eigen::Vector3d velocity = stateVector.tail(3);
-
-                        // Compute the cross product
-                        Eigen::Vector3d crossProduct = position.cross(velocity);
-
-                        // Store the result in the map with the time as the key
-                        crossProductMap[time] = crossProduct;
-                } else {
-                        std::cerr << "Warning: State vector at time " << time << " does not have exactly 6 elements." << std::endl;
-                        crossProductMap[time] = Eigen::Vector3d::Zero();  // Placeholder if state vector is not size 6
-                }
-        }
-
-        return crossProductMap;
-}
-// Example function to compute dot products for a map of vectors
-std::map<double, double> computeDotProductMap(const std::map<double, Eigen::VectorXd>& vectorMap1, const std::map<double, Eigen::VectorXd>& vectorMap2) {
-        std::map<double, double> dotProductMap;
-
-        for (const auto& [time, vector1] : vectorMap1) {
-                // Ensure the time key exists in both maps
-                if (vectorMap2.find(time) != vectorMap2.end()) {
-                        const Eigen::VectorXd& vector2 = vectorMap2.at(time);
-                        // Compute the dot product
-                        dotProductMap[time] = vector1.dot(vector2);
-
-                } else {
-                        std::cerr << "Warning: Time key " << time << " not found in both maps." << std::endl;
-                }
-        }
-
-        return dotProductMap;
-}
-std::map<double, double> computeNorms(const std::map<double, Eigen::VectorXd>& relativePos) {
-        std::map<double, double> norms;
-
-        for (const auto& [key, vector] : relativePos) {
-                // Calculate the norm of the vector (last 3 columns)
-                double norm = vector.norm();
-                norms[key] = norm;
-        }
-
-        return norms;
-}
-
-
 void ensureDirectoryExists(const std::string& path)
 {
     struct stat info;
@@ -330,7 +275,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext24_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext25_ipng_mgs95j.bsp" );
     spice_interface::loadSpiceKernelInTudat( "/home/ralkahal/new-tudat-tests/mgs_ext26_ipng_mgs95j.bsp" );
-        int arcIndex = config.arcIndex;
+    int arcIndex = config.arcIndex;
     double arcStart = config.arcStart;
     double arcEnd = config.arcEnd;
     std::vector<double> obsStartTimes = config.obsStartTimes;
@@ -358,7 +303,6 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
         std::vector<double> initial_times_list_emp;
         for (double time =arcStart +buffer; time <= arcEnd-buffer; time += step_size) {
                 if (arcEnd-time < step_size) {
-                        //initial_times_list_emp.push_back(arcEndTimesToEstimate.at(i));
                         break;
                 }
                 initial_times_list_emp.push_back(time);
@@ -465,9 +409,8 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     // Set polynomial gravity field variation
     std::map<int, Eigen::MatrixXd> cosineAmplitudes;
     cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
-    //cosineAmplitudes[ 1 ] = Eigen::Matrix< double, 10, 11 >::Zero( );
     //nVec Root 800 km depth
-    /*
+    
     cosineAmplitudes[ 1 ]( 0, 0 ) += -7.00583559071078e-13/(365*24*3600);
     cosineAmplitudes[1](0,1) +=-5.44909982178362e-14/(365*24*3600);
     cosineAmplitudes[1](0,2) += -8.31134553095663e-13/(365*24*3600);
@@ -491,153 +434,8 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
     sineAmplitudes[1](2,2) += 4.70640224945299e-13/(365*24*3600);
     sineAmplitudes[1](2,3) += -4.50562269498905e-14/(365*24*3600);
     sineAmplitudes[1](2,4) += 8.5339608889136e-13/(365*24*3600);
-    */
-    cosineAmplitudes[ 1 ]( 0, 0 ) += 3.7088e-13/(365*24*3600);
-    cosineAmplitudes[1](0,1) += 1.5197e-14/(365*24*3600);
-    cosineAmplitudes[1](0,2) += 4.3985e-13/(365*24*3600);
-    cosineAmplitudes[1](1,0) +=-1.5314e-14/(365*24*3600);
-    cosineAmplitudes[1](1,1) += 1.5706e-13/(365*24*3600);
-    cosineAmplitudes[1](1,2) += -1.3541e-14/(365*24*3600);
-    cosineAmplitudes[1](1,3) += 4.8069e-13/(365*24*3600);
-    cosineAmplitudes[1](2,0) += -1.8249e-13/(365*24*3600);
-    cosineAmplitudes[1](2,1) += -5.1306e-15/(365*24*3600);
-    cosineAmplitudes[1](2,2) += -1.8629e-13/(365*24*3600);
-    cosineAmplitudes[1](2,3) += -1.0727e-14/(365*24*3600);
-    cosineAmplitudes[1](2,4) += 2.2612e-14/(365*24*3600);
-    /*
-    cosineAmplitudes[1](3,0) += 7.4876e-15/(365*24*3600);
-    cosineAmplitudes[1](3,1) += -6.1070e-14/(365*24*3600);
-    cosineAmplitudes[1](3,2) += 7.0067e-15/(365*24*3600);
-    cosineAmplitudes[1](3,3) += -1.5636e-13/(365*24*3600);
-    cosineAmplitudes[1](3,4) += -5.5185e-16/(365*24*3600);
-    cosineAmplitudes[1](3,5) += -1.9899e-13/(365*24*3600);
-    
-    cosineAmplitudes[1](4,0) += 6.6124e-14/(365*24*3600);
-    cosineAmplitudes[1](4,1) += 4.6720e-15/(365*24*3600);
-    cosineAmplitudes[1](4,2) += 6.5600e-14/(365*24*3600);
-    cosineAmplitudes[1](4,3) += 1.0507e-14/(365*24*3600);
-    cosineAmplitudes[1](4,4) += -6.5907e-15/(365*24*3600);
-    cosineAmplitudes[1](4,5) += 8.5288e-15/(365*24*3600);
-    cosineAmplitudes[1](4,6) += -1.0988e-13/(365*24*3600);
-    
-    cosineAmplitudes[1](5,0) += -1.0246e-14/(365*24*3600);
-    cosineAmplitudes[1](5,1) += 2.8068e-14/(365*24*3600);
-    cosineAmplitudes[1](5,2) += -9.7440e-15/(365*24*3600);
-    cosineAmplitudes[1](5,3) += 6.9139e-14/(365*24*3600);
-    cosineAmplitudes[1](5,4) += 8.3750e-16/(365*24*3600);
-    cosineAmplitudes[1](5,5) += 7.2509e-14/(365*24*3600);
-    cosineAmplitudes[1](5,6) += 8.7519e-15/(365*24*3600);
-    cosineAmplitudes[1](5,7) += 3.0999e-14/(365*24*3600);
-    
-    cosineAmplitudes[1](6,0) += -4.2963e-14/(365*24*3600);
-    cosineAmplitudes[1](6,1) += -6.3576e-15/(365*24*3600);
-    cosineAmplitudes[1](6,2) += -4.2200e-14/(365*24*3600);
-    cosineAmplitudes[1](6,3) += -1.4563e-14/(365*24*3600);
-    cosineAmplitudes[1](6,4) += 4.0588e-15/(365*24*3600);
-    cosineAmplitudes[1](6,5) += -1.2910e-14/(365*24*3600);
-    cosineAmplitudes[1](6,6) += 5.5615e-14/(365*24*3600);
-    cosineAmplitudes[1](6,7) += -3.4228e-15/(365*24*3600);
-    cosineAmplitudes[1](6,8) += 9.8299e-14/(365*24*3600);
 
-    cosineAmplitudes[1](7,0) += 1.0490e-14/(365*24*3600);
-    cosineAmplitudes[1](7,1) += -1.9996e-14/(365*24*3600);
-    cosineAmplitudes[1](7,2) += 1.0044e-14/(365*24*3600);
-    cosineAmplitudes[1](7,3) += -4.8516e-14/(365*24*3600);
-    cosineAmplitudes[1](7,4) += -8.8980e-16/(365*24*3600);
-    cosineAmplitudes[1](7,5) += -4.8583e-14/(365*24*3600);
-    cosineAmplitudes[1](7,6) += -1.0103e-14/(365*24*3600);
-    cosineAmplitudes[1](7,7) += -1.7041e-14/(365*24*3600);
-    cosineAmplitudes[1](7,8) += -1.0964e-14/(365*24*3600);
-    cosineAmplitudes[1](7,9) += 4.2871e-14/(365*24*3600);
-
-    cosineAmplitudes[1](8,0) += 2.3697e-14/(365*24*3600);
-    cosineAmplitudes[1](8,1) += 4.2818e-15/(365*24*3600);
-    cosineAmplitudes[1](8,2) += 2.3151e-14/(365*24*3600);
-    cosineAmplitudes[1](8,3) += 9.9593e-15/(365*24*3600);
-    cosineAmplitudes[1](8,4) += -2.1859e-15/(365*24*3600);
-    cosineAmplitudes[1](8,5) += 9.0470e-15/(365*24*3600);
-    cosineAmplitudes[1](8,6) += -2.8567e-14/(365*24*3600);
-    cosineAmplitudes[1](8,7) += 2.6173e-15/(365*24*3600);
-    cosineAmplitudes[1](8,8) += -4.1377e-14/(365*24*3600);
-    cosineAmplitudes[1](8,9) += -4.0107e-15/(365*24*3600);
-    cosineAmplitudes[1](8,10) += -3.3917e-14/(365*24*3600);
-    */
-    std::map<int, Eigen::MatrixXd> sineAmplitudes;
-    sineAmplitudes[ 1 ] = Eigen::Matrix< double, 4, 5 >::Zero( );
-    /*sineAmplitudes[1](0,1) +=1.25916272835878e-13/(365*24*3600);
-    sineAmplitudes[1](0,2) += -8.84999663538266e-13/(365*24*3600);
-    sineAmplitudes[1](1,1) += 6.0445217093141e-13/(365*24*3600);
-    sineAmplitudes[1](1,2) += 1.08851817438134e-13/(365*24*3600);
-    sineAmplitudes[1](1,3) += 2.88244592826493e-13/(365*24*3600);
-    sineAmplitudes[1](2,1) += -1.38365049897319e-13/(365*24*3600);
-    sineAmplitudes[1](2,2) += 4.70640224945299e-13/(365*24*3600);
-    sineAmplitudes[1](2,3) += -4.50562269498905e-14/(365*24*3600);
-    sineAmplitudes[1](2,4) += 8.5339608889136e-13/(365*24*3600);
-    */
-    //sineAmplitudes[ 1 ] = Eigen::Matrix< double, 10, 11 >::Zero( );
-    sineAmplitudes[1](0,1) += -3.5129e-14/(365*24*3600);
-    sineAmplitudes[1](0,2) += 4.6841e-13/(365*24*3600);
-    sineAmplitudes[1](1,1) += -3.6292e-13/(365*24*3600);
-    sineAmplitudes[1](1,2) += -1.4412e-14/(365*24*3600);
-    sineAmplitudes[1](1,3) += -1.7307e-13/(365*24*3600);
-
-    sineAmplitudes[1](2,1) += 1.1861e-14/(365*24*3600);
-    sineAmplitudes[1](2,2) += -1.9839e-13/(365*24*3600);
-    sineAmplitudes[1](2,3) += 3.8676e-15/(365*24*3600);
-    sineAmplitudes[1](2,4) += -3.5973e-13/(365*24*3600);
-/*
-    sineAmplitudes[1](3,1) += 1.4111e-13/(365*24*3600);
-    sineAmplitudes[1](3,2) += 7.4570e-15/(365*24*3600);
-    sineAmplitudes[1](3,3) += 5.6298e-14/(365*24*3600);
-    sineAmplitudes[1](3,4) += 8.8490e-15/(365*24*3600);
-    sineAmplitudes[1](3,5) += -1.0138e-13/(365*24*3600);
-    
-    sineAmplitudes[1](4,1) += -1.0801e-14/(365*24*3600);
-    sineAmplitudes[1](4,2) += 6.9861e-14/(365*24*3600);
-    sineAmplitudes[1](4,3) += -3.7850e-15/(365*24*3600);
-    sineAmplitudes[1](4,4) += 1.0480e-13/(365*24*3600);
-    sineAmplitudes[1](4,5) += 4.3408e-15/(365*24*3600);
-    sineAmplitudes[1](4,6) += 9.890e-14/(365*24*3600);
-    
-    sineAmplitudes[1](5,1) += -6.4851e-14/(365*24*3600);
-    sineAmplitudes[1](5,2) += -1.0375e-14/(365*24*3600);
-    sineAmplitudes[1](5,3) += -2.4895e-14/(365*24*3600);
-    sineAmplitudes[1](5,4) += 1.3332e-14/(365*24*3600);
-    sineAmplitudes[1](5,5) += 3.6942e-14/(365*24*3600);
-    sineAmplitudes[1](5,6) += -7.2454e-15/(365*24*3600);
-    sineAmplitudes[1](5,7) += 1.0673e-13/(365*24*3600);
-
-    sineAmplitudes[1](6,1) += 1.4692e-14/(365*24*3600);
-    sineAmplitudes[1](6,2) += -4.4942e-14/(365*24*3600);
-    sineAmplitudes[1](6,3) += 5.2678e-15/(365*24*3600);
-    sineAmplitudes[1](6,4) += -6.4607e-14/(365*24*3600);
-    sineAmplitudes[1](6,5) += -6.5768e-15/(365*24*3600);
-    sineAmplitudes[1](6,6) += -4.6004e-14/(365*24*3600);
-    sineAmplitudes[1](6,7) += -1.1771e-14/(365*24*3600);
-    sineAmplitudes[1](6,8) += 1.2419e-14/(365*24*3600);
-    
-    sineAmplitudes[1](7,1) += 4.6203e-14/(365*24*3600);
-    sineAmplitudes[1](7,2) += 1.0697e-14/(365*24*3600);
-    sineAmplitudes[1](7,3) += 1.7470e-14/(365*24*3600);
-    sineAmplitudes[1](7,4) += 1.4122e-14/(365*24*3600);
-    sineAmplitudes[1](7,5) += -2.4751e-14/(365*24*3600);
-    sineAmplitudes[1](7,6) += 8.3603e-15/(365*24*3600);
-    sineAmplitudes[1](7,7) += -5.8673e-14/(365*24*3600);
-    sineAmplitudes[1](7,8) += -1.3839e-15/(365*24*3600);
-    sineAmplitudes[1](7,9) += -7.2501e-14/(365*24*3600);
-    
-    sineAmplitudes[1](8,1) += -9.8947e-15/(365*24*3600);
-    sineAmplitudes[1](8,2) += 2.4655e-14/(365*24*3600);
-    sineAmplitudes[1](8,3) += -3.5841e-15/(365*24*3600);
-    sineAmplitudes[1](8,4) += 3.4814e-14/(365*24*3600);
-    sineAmplitudes[1](8,5) += 4.6108e-15/(365*24*3600);
-    sineAmplitudes[1](8,6) += 2.3630e-14/(365*24*3600);
-    sineAmplitudes[1](8,7) += 9.0029e-15/(365*24*3600);
-    sineAmplitudes[1](8,8) += -5.2279e-15/(365*24*3600);
-    sineAmplitudes[1](8,9) += 6.7806e-15/(365*24*3600);
-    sineAmplitudes[1](8,10) += -2.3341e-14/(365*24*3600);
-*/
-std::cout<<"creating settings for poly grav"<<std::endl;
+    std::cout<<"creating settings for poly grav"<<std::endl;
     std::shared_ptr< GravityFieldVariationSettings > polynomialGravityFieldVariations =
             std::make_shared< PolynomialGravityFieldVariationsSettings >(
                     cosineAmplitudes, sineAmplitudes, 0.0, 2, 0 );
@@ -681,14 +479,10 @@ std::cout<<"creating settings for poly grav"<<std::endl;
     accelerationsOfVehicle["Phobos"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Deimos"].push_back(pointMassGravityAcceleration());
     accelerationsOfVehicle["Jupiter"].push_back(pointMassGravityAcceleration());
-    //accelerationsOfVehicle["Mars"].push_back(std::make_shared<EmpiricalAccelerationSettings>(
-    //                                                        Eigen::Vector3d::Zero(),
-    //                                                        Eigen::Vector3d::Zero(),
-    //                                                        Eigen::Vector3d::Zero()));
 
 
     accelerationMap[spacecraftName] = accelerationsOfVehicle;
-// Set bodies for which initial state is to be estimated and integrated.
+    // Set bodies for which initial state is to be estimated and integrated.
     std::vector<std::string> bodiesToIntegrate;
     std::string centralBody = "Mars";
     std::vector<std::string> centralBodies = {centralBody};
@@ -899,8 +693,6 @@ std::cout<<"creating settings for poly grav"<<std::endl;
                         return result;
         };
         std::cout<<"noise functions created"<<std::endl;
-            //std::string fileTag = "accumul_InverseAprALLGlobalPars_drag_" +  std::to_string(arcLength) + std::to_string(itotalDuration) +  "darc_startat" + std::to_string(startTime)
-            //                              + "_" + std::to_string(finalTime);
 
         Eigen::VectorXd systemInitialStates;
         systemInitialStates = spice_interface::getBodyCartesianStateAtEpoch(
@@ -917,23 +709,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
                         "", 18, 18 );
         std::vector< std::shared_ptr< EstimatableParameterSettings > > parameterNames =
                             getInitialStateParameterSettings< double, double  >( propagatorSettings, bodies);
-        parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName,constant_drag_coefficient));// initial_times_list_drag ));
-        //std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
-
-        //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-        //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-        //parameterNames.push_back( std::make_shared<EmpiricalAccelerationEstimatableParameterSettings >(spacecraftName,"Mars", empiricalAccelerationComponents ) );
-
-        //std::map< EmpiricalAccelerationComponents, std::vector< EmpiricalAccelerationFunctionalShapes > > empiricalAccelerationComponents;
-
-        //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( constant_empirical );
-        //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( cosine_empirical );
-        //empiricalAccelerationComponents[ across_track_empirical_acceleration_component ].push_back( sine_empirical );
-        //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( constant_empirical );
-        //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( cosine_empirical );
-        //empiricalAccelerationComponents[ along_track_empirical_acceleration_component ].push_back( sine_empirical );
-
-        //parameterNames.push_back( std::make_shared< ArcWiseEmpiricalAccelerationEstimatableParameterSettings >(spacecraftName,"Mars", empiricalAccelerationComponents, initial_times_list_emp ) );
+        parameterNames.push_back(std::make_shared< EstimatableParameterSettings >(spacecraftName,constant_drag_coefficient));
 
         parameterNames.push_back( std::make_shared< SphericalHarmonicEstimatableParameterSettings >(
                                          2, 0, 18, 18, "Mars", spherical_harmonics_cosine_coefficient_block ) );
@@ -943,19 +719,16 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         std::map<int, std::vector<std::pair<int, int> > > cosineBlockIndicesPerPeriod;
                 //periodic gravity field
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 5, 0 ) );
 
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 1 ].push_back( std::make_pair( 5, 0 ) );
 
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 2, 0) );
-        //cosineBlockIndicesPerPeriod[ 0 ].push_back( std::make_pair( 2, 1 ) );
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 3, 0 ) );
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 4, 0 ) );
         cosineBlockIndicesPerPeriod[ 2 ].push_back( std::make_pair( 5, 0 ) );
@@ -979,63 +752,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
         cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
-	/*
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 3 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 4 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 5 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 3 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 4 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 5 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 5 ) );
-
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 3 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 4 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 5 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 6 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 7 ) );
-
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 3 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 4 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 5 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 6 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 7 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 8 ) );
 	
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 3 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 4 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 5 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 6 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 7 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 8 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 9 ) );
-
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 0 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 1 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 2 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 3 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 4 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 5 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 6 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 7 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 8 ) );
-        cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 9 ) );
-	cosineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 10 ) );
-*/
         std::map<int, std::vector<std::pair<int, int> > > sineBlockIndicesPerPower;
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 2 ) );
@@ -1046,58 +763,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 2 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 3 ) );
         sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 4, 4 ) );
-/*
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 1 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 2 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 3 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 4 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 5, 5 ) );
 
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 1 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 2 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 3 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 4 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 5 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 6, 6 ) );
-
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 1 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 2 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 3 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 4 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 5 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 6 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 7, 7 ) );
-
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 1 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 2 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 3 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 4 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 5 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 6 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 7 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 8, 8 ) );
-
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 1 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 2 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 3 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 4 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 5 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 6 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 7 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 8 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 9, 9 ) );
-
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 1 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 2 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 3 ) );
-        sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 4 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 5 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 6 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 7 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair(10, 8 ) );
-	sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 10, 9 ) );
-*/
-        //sineBlockIndicesPerPower[ 1 ].push_back( std::make_pair( 2, 1 ) );
         parameterNames.push_back( std::make_shared< PolynomialGravityFieldVariationEstimatableParameterSettings >(
                 "Mars", cosineBlockIndicesPerPower, sineBlockIndicesPerPower ) );
 
@@ -1122,7 +788,6 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         {
                 ObservableType currentObservable = linkEndIterator->first;
                 std::vector< LinkEnds > currentLinkEndsList = linkEndIterator->second;
-                //std::function< double( const double ) > noiseFunction = noiseFunctions[currentObservable];
                 for( unsigned int currLinkEnd = 0; currLinkEnd < currentLinkEndsList.size( ); currLinkEnd++ )
                 {
                         measurementSimulationInput.push_back(
@@ -1141,25 +806,13 @@ std::cout<<"creating settings for poly grav"<<std::endl;
 
         printEstimatableParameterEntries( parametersToEstimate );
         int lengthOfTimeListEmp = initial_times_list_emp.size();
-        //int numberOfLocalParameters = 7;//+2;
-        int numberOfLocalParameters = 7;//+lengthOfTimeListEmp*4;
+        int numberOfLocalParameters = 7;
 
         const int DIAGONALS = numberOfLocalParameters;
         Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
         double aprioriuncertainty =1.0/(10*10);
         matrix(6,6) = aprioriuncertainty;
-        /*double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
-        for (int i = 7; i < numberOfLocalParameters - 2*lengthOfTimeListEmp; ++i) {
-                matrix(i,i) = aprioriuncertainty1;
-        }
-        double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
-        for (int i = numberOfLocalParameters - 2*lengthOfTimeListEmp; i < numberOfLocalParameters; ++i) {
-                matrix(i,i) = aprioriuncertainty2;
-        }*/
-        //double aprioriuncertainty1 = 1.0/(10E-9*10E-9);
-        //matrix(7,7) = aprioriuncertainty1;
-        //double aprioriuncertainty2 = 1.0/(10E-6*10E-6);
-        //matrix(8,8) = aprioriuncertainty2;
+        
         for (int j = 0; j < cnmErrors.size(); ++j) {
                 matrix(j+DIAGONALS,j+DIAGONALS) = 1.0/(cnmErrors[j]*cnmErrors[j]);
         }
@@ -1167,7 +820,7 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         for (int j= 0; j < snmErrors.size(); ++j) {
                 matrix(j+DIAGONALS+cnmErrors.size(),j+DIAGONALS+cnmErrors.size()) = 1.0/(snmErrors[j]*snmErrors[j]);
         }
-/*
+
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size(), DIAGONALS+cnmErrors.size()+snmErrors.size()) = 1.0/(0.016E-09*0.016E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+1, DIAGONALS+cnmErrors.size()+snmErrors.size()+1) = 1.0/(0.016E-09*0.016E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+2, DIAGONALS+cnmErrors.size()+snmErrors.size()+2) = 1.0/(0.011E-09*0.011E-09);
@@ -1195,12 +848,12 @@ std::cout<<"creating settings for poly grav"<<std::endl;
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+22, DIAGONALS+cnmErrors.size()+snmErrors.size()+22) = 1.0/(0.010E-09*0.010E-09);
         matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+23, DIAGONALS+cnmErrors.size()+snmErrors.size()+23) = 1.0/(0.010E-09*0.010E-09);
 
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;///(0.1E-19*0.1E-19);
-        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;///(0.1E-19*0.1E-19);
-*/        
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+24, DIAGONALS+cnmErrors.size()+snmErrors.size()+24) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+25, DIAGONALS+cnmErrors.size()+snmErrors.size()+25) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+26, DIAGONALS+cnmErrors.size()+snmErrors.size()+26) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+27, DIAGONALS+cnmErrors.size()+snmErrors.size()+27) = 0.0;
+        matrix(DIAGONALS+cnmErrors.size()+snmErrors.size()+28, DIAGONALS+cnmErrors.size()+snmErrors.size()+28) = 0.0;
+        
 	P0_matrix = matrix;
         saveParamCounts(saveDirectory, numberOfLocalParameters, 0);
 	std::shared_ptr< CovarianceAnalysisInput< double, double > > covarianceInput =

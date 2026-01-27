@@ -1,13 +1,6 @@
 //
 // Created by ralkahal on 14-10-25.
 //
-// Created by ralkahal on 2-9-25.
-//
-// Created by ralkahal on 21-8-25.
-//
-//
-// Created by ralkahal on 7-8-25.
-//
 #include <iostream>
 #include <fstream>
 #include <limits>
@@ -36,11 +29,11 @@ struct EigenThreadsGuard {
 struct OmpThreadsGuard {
 	int prev_{1};
 	explicit OmpThreadsGuard(int set_to = -1) {
-		prev_ = omp_get_max_threads();         // not exact “prev”, but ok as a fallback
+		prev_ = omp_get_max_threads();
 		if (set_to > 0) omp_set_num_threads(set_to);
 	}
 	~OmpThreadsGuard() {
-		// Optional: restore. If you want to be strict, call omp_set_num_threads(prev_)
+        
 	}
 };
 #endif
@@ -165,9 +158,7 @@ void saveMatrixBinary(const std::string& filename, const Eigen::MatrixXd& M)
     Eigen::Index cols = M.cols();
     out.write(reinterpret_cast<const char*>(&rows), sizeof(Eigen::Index));
     out.write(reinterpret_cast<const char*>(&cols), sizeof(Eigen::Index));
-//    Eigen::MatrixXd matrix(rows,cols);
     out.write(reinterpret_cast<const char*>(M.data()),rows*cols*sizeof(double));
-    //if (!out) throw std::runtime_error("Cannot read data from :" + filename);
 
 }
 bool fileExists(const std::string& path){
@@ -309,8 +300,6 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	int itotalDuration = nIndex * 5;
 	double totalDur = nIndex * 5.0;
 	double finalTime = totalDur * 86400.0;
-	//std::string fileTag = "accumul_InverseAprALLGlobalPars_drag_5" + std::to_string(itotalDuration);
-	//fileTag = nIndex + "nArcs" + fileTag;
 	std::cout<<"covariance analysis for" << nArcs <<" samples out of " << nIndex << " arcs done, starting summing them up..."<<std::endl;
 
 	int numberOfParameters = static_cast<int>(P0_matrices[0].rows());
@@ -320,10 +309,8 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	int numCols = numberOfGlobalParameters;
 
 	int totalNumberOfLocalParameters = std::accumulate(numberOfLocalParametersAll.begin(), numberOfLocalParametersAll.end(), 0);
-	// total parameter size across all arcs (locals) + globals
 	int total_size = totalNumberOfLocalParameters + numberOfGlobalParameters;
 
-	//Eigen::MatrixXd P_global = Eigen::MatrixXd::Zero(total_size,total_size);
 
 	// --- Merge normalization factors for all params (locals for each arc + globals) ---
         // merge normalization factors for all matrices, except for the global parameters
@@ -416,7 +403,7 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 		const auto& H = normalizedDesignMatrices[i];
 		const Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(weightDiagonals[i]);
 		Eigen::MatrixXd P_im = H.transpose() * W * H;
-		resultNormalizedInvCovMatrices[i] = P_im + P0_matrices[i];  // == resultNormalizedInvCovMatrices[i]
+		resultNormalizedInvCovMatrices[i] = P_im + P0_matrices[i];
 	}
 	auto arc_sym_residual = [&](const Eigen::MatrixXd& A){
 		double num = (A - A.transpose()).norm();
@@ -433,25 +420,18 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 
 		double res = arc_sym_residual(M);
 		double minDiag = M.diagonal().minCoeff();
-		//std::cerr << "arc " << i << "  sym_res=" << res
-		//		  << "  min_diag=" << minDiag << "\n";
 
-		if (res > 1e-12) {
-			// Temporary symmetrization for diagnostics; comment out once fixed
-			M = 0.5 * (M + M.transpose());
-		}
 		// store M back
 		resultNormalizedInvCovMatrices[i] = std::move(M);
 	}
 
 	#if COV_DEBUG
 	for (int i = 0; i < nArcs; ++i) {
-		const auto& M = resultNormalizedInvCovMatrices[i]; // == resultNormalizedInvCovMatrices[i]
+		const auto& M = resultNormalizedInvCovMatrices[i];
 		if (!allFinite(M)) std::cerr << "NaN/Inf in resultNormalizedInvCovMatrices["<<i<<"]\n";
-		//double off = (M - M.transpose()).cwiseAbs().maxCoeff();
 		double off = symmetryResidual(M);
 		if (off > 1e-12) std::cerr << "Arc "<<i<<" not perfectly symmetric, max|A-AT|="<< off <<"\n";
-		// Optional: quick SPD probe on the local block (small)
+		
 		Eigen::LLT<Eigen::MatrixXd> llt(M.block(0,0, 6+1, 6+1));
 		if (llt.info() != Eigen::Success) std::cerr << "Arc "<<i<<" local block not SPD\n";
 	}
@@ -473,9 +453,7 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	std::cout<<"Global parameters values summed up!"<<std::endl;
         std::cout<<"Now assembling the global normalized inverse covariance matrix..."<<std::endl;
 
-	// std::vector<int> prefL(nArcs + 1, 0);
-	// for (int i = 0; i < nArcs; ++i) prefL[i + 1] = prefL[i] + numberOfLocalParametersAll[i]-6;
-	// const int totalLoc  = prefL[nArcs];
+	
 	using SpMat = Eigen::SparseMatrix<double, Eigen::ColMajor>;
 	std::vector<Eigen::Triplet<double>> trips;
 	size_t reserve_nnz = numberOfGlobalParameters * (numberOfGlobalParameters + 1) / 2;
@@ -487,14 +465,7 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 					 + size_t(numberOfGlobalParameters)*stateVectorSize                 // global–state (lower)
 					 + size_t(numberOfGlobalParameters)*nLocal;             // global–local (lower)
 	}
-	/*const int estPerArc =
-	   stateVectorSize*stateVectorSize
-	   + 2*stateVectorSize*nLocal + nLocal*nLocal
-	   + 2*stateVectorSize*numberOfGlobalParameters
-	   + 2*nLocal*numberOfGlobalParameters;
-*/
-	// trips.reserve(static_cast<size_t>(1.5 * nArcs * estPerArc + numberOfGlobalParameters*numberOfGlobalParameters));
-	// std::vector<Trip> trips;
+	
 	trips.reserve(reserve_nnz);
 	int globalOffset = totalNumberOfLocalParameters;// nArcs*(stateVectorSize+nLocal);
 
@@ -520,37 +491,19 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
     	int nLocal = numberOfLocalParametersAll[i] - stateVectorSize;
     	const int localOffset = nArcs * stateVectorSize + i * nLocal;
 
-		// Arc-arc block
-    	/*addBlockTriplets(startOffset, startOffset, M.block(0, 0, stateVectorSize, stateVectorSize), trips);
+        addLower(startOffset, startOffset, M.block(0, 0, stateVectorSize, stateVectorSize), trips);
+    	//local-local covariance matrix
+        addLower(localOffset, localOffset, M.block(stateVectorSize, stateVectorSize, nLocal, nLocal), trips);
         //arc-local covariance matrix
-    	addBlockTriplets(startOffset, localOffset, M.block(0, stateVectorSize, stateVectorSize, nLocal), trips);
-    	//local-arc covariance matrix
-    	addBlockTriplets(localOffset, startOffset, M.block(0, stateVectorSize, stateVectorSize, nLocal).transpose(), trips);
-    	//local-local covariance matrix
-	addBlockTriplets(localOffset, localOffset, M.block(stateVectorSize, stateVectorSize, nLocal, nLocal), trips);
-    	//arc-global covariance matrix
-	addBlockTriplets(startOffset, globalOffset, M.block(0, stateVectorSize + nLocal, stateVectorSize, numberOfGlobalParameters), trips);
-    	//global-arc covariance matrix
-	addBlockTriplets(globalOffset, startOffset, M.block(0, stateVectorSize + nLocal, stateVectorSize, numberOfGlobalParameters).transpose(), trips);
-    	//local-global covariance matrix
-	addBlockTriplets(localOffset, globalOffset, M.block(stateVectorSize, stateVectorSize + nLocal, nLocal, numberOfGlobalParameters), trips);
-    	//global-local covariance matrix
-    	addBlockTriplets(globalOffset, localOffset, M.block(stateVectorSize, stateVectorSize + nLocal, nLocal, numberOfGlobalParameters).transpose(), trips);
-	*/
-	addLower(startOffset, startOffset, M.block(0, 0, stateVectorSize, stateVectorSize), trips);
-    	//local-local covariance matrix
-	addLower(localOffset, localOffset, M.block(stateVectorSize, stateVectorSize, nLocal, nLocal), trips);
-	//arc-local covariance matrix
     	addLower(localOffset, startOffset, M.block(stateVectorSize,0,nLocal,stateVectorSize), trips);
     	//global-arc covariance matrix
-	addLower(globalOffset, startOffset, M.block(stateVectorSize + nLocal,0,numberOfGlobalParameters,stateVectorSize), trips);
+        addLower(globalOffset, startOffset, M.block(stateVectorSize + nLocal,0,numberOfGlobalParameters,stateVectorSize), trips);
     	//global-local covariance matrix
     	addLower(globalOffset, localOffset, M.block(stateVectorSize + nLocal,stateVectorSize, numberOfGlobalParameters, nLocal), trips);
 	}
     // global-global covariance matrix
 	addLower(globalOffset, globalOffset,inverseNormalizedCovarianceMatrixSummedGP, trips);
 
-	//SpMat P_global_sparse(total_size, total_size);
 	Eigen::SparseMatrix<double> P_global_sparse(total_size, total_size);
 	P_global_sparse.setFromTriplets(trips.begin(), trips.end());
 	P_global_sparse.makeCompressed();
@@ -568,17 +521,11 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	std::cerr << "min diagonal: " << minDiagonal(P_global_sparse) << " (should be > 0 for SPD)\n";
 	#endif
 	// --- Factor SPD matrix with sparse Cholesky ---
-	// If you have CHOLMOD or Pardiso, switch to those for better performance.
-	//Eigen::SimplicialLDLT<SpMat> solver;
-	//solver.analyzePattern(P_global_sparse);
-	//solver.factorize(P_global_sparse);
-	//if (solver.info() != Eigen::Success) {
-	//	throw std::runtime_error("Cholesky factorization failed (matrix may be singular or not SPD).");
-	//}
+	
 	const int n = total_size;
 	const int BlockSize = 512; // tune based on memory/cache
 	Eigen::MatrixXd NormalizedCovarianceMatrixSummed(n, n);
-	NormalizedCovarianceMatrixSummed.setZero(); // ensure init
+	NormalizedCovarianceMatrixSummed.setZero(); 
 
 	// Solve in column blocks: P * X = I_block
 	for (int col = 0; col < n; col += BlockSize) {
@@ -635,7 +582,6 @@ int main(int argc, char* argv[])
     }
     if (baseDir.empty() || numArcs <= 0)
     { std:: cerr << "Provide --base-dir AND --num-arcs\n"; printUsage(argv[0]); return 1;}
-    //if (outputFile.empty()) { std::cerr << "Missing --ouput\n"; printUsage(argv[0]); return 1;}
     if (start >= numArcs) throw std::runtime_error("--start >= --num-arcs");
 
     bool hasStep = (step>0);
@@ -662,7 +608,6 @@ int main(int argc, char* argv[])
 
     combinedResults res = computeCovarianceMatrix(numberOfLocalParametersAll, numArcs, normalizedDesignMatrices, unnormalizedDesignMatrices, normalizationFactors, weightDiagonals,P0_matrices);
     saveMatrixBinary(baseDir + "/resultedUnnormalizedCovarianceMatrix" + fileTag + ".bin",res.resultedUnnormalizedCovarianceMatrix);
-    //saveMatrixBinary(baseDir + "/suminverseNormalizedCovarianceMatrix" + fileTag + ".bin",res.P_global_sparse);
 
 
 }

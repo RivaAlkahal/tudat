@@ -1,12 +1,6 @@
 //
 // Created by ralkahal on 19-9-25.
 //
-// Created by ralkahal on 2-9-25.
-//
-// Created by ralkahal on 21-8-25.
-//
-//
-// Created by ralkahal on 7-8-25.
 //
 #include <iostream>
 #include <fstream>
@@ -36,11 +30,10 @@ struct EigenThreadsGuard {
 struct OmpThreadsGuard {
 	int prev_{1};
 	explicit OmpThreadsGuard(int set_to = -1) {
-		prev_ = omp_get_max_threads();         // not exact “prev”, but ok as a fallback
+		prev_ = omp_get_max_threads();
 		if (set_to > 0) omp_set_num_threads(set_to);
 	}
 	~OmpThreadsGuard() {
-		// Optional: restore. If you want to be strict, call omp_set_num_threads(prev_)
 	}
 };
 #endif
@@ -304,17 +297,13 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 
 	const int nArcs = static_cast<int>(normalizedDesignMatrices.size());
 	std::cout<<"nArcs " << nArcs << ", nIndex "<< nIndex << std::endl;
-	//if (nArcs != nIndex) throw std::runtime_error("number of arcs do not match!");
 
 	int itotalDuration = nIndex * 5;
 	double totalDur = nIndex * 5.0;
 	double finalTime = totalDur * 86400.0;
-	//std::string fileTag = "accumul_InverseAprALLGlobalPars_drag_5" + std::to_string(itotalDuration);
-	//fileTag = nIndex + "nArcs" + fileTag;
 	std::cout<<"covariance analysis for" << nArcs <<" samples out of " << nIndex << " arcs done, starting summing them up..."<<std::endl;
 
 	int numberOfParameters = static_cast<int>(P0_matrices[0].rows());
-	//int stateVectorSize =6;
 
 	int numberOfGlobalParameters = numberOfParameters - numberOfLocalParametersAll[0];
 	int numCols = numberOfGlobalParameters;
@@ -323,33 +312,21 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	// total parameter size across all arcs (locals) + globals
 	int total_size = totalNumberOfLocalParameters + numberOfGlobalParameters;
 	std::cout<<"numberOfGlobalParameters " << numberOfGlobalParameters << ", totalNumberOfLocalParameters "<< totalNumberOfLocalParameters << ", total_size "<< total_size << std::endl;
-	//Eigen::MatrixXd P_global = Eigen::MatrixXd::Zero(total_size,total_size);
-
-	// --- Merge normalization factors for all params (locals for each arc + globals) ---
-        // merge normalization factors for all matrices, except for the global parameters
-    // Eigen::VectorXd normalizationFactorsMerged = Eigen::VectorXd::Zero(total_size);
-	//size_t stateOffst= 0;
-	//size_t localOffst = static_cast<size_t>(nArcs) * stateVectorSize;
+    // --- Merge normalization factors for all params (locals for each arc + globals) ---
+    // merge normalization factors for all matrices, except for the global parameters
+    
 	using Index = Eigen::Index;
 
 	std::vector<int> nSats(nArcs);
 	std::vector<Index> stateSizes(nArcs), localSizes(nArcs);
 
-	for (int i = 0; i < nArcs; i++){
-		const int total = numberOfLocalParametersAll[i];
-		if (total % 7 != 0) throw std::runtime_error("Params not divisible by 7 for arc " + std::to_string(i));
-		nSats[i]      = total / 7;
-		stateSizes[i] = static_cast<Index>(6 * nSats[i]);  // 6 per satellite
-		localSizes[i] = static_cast<Index>(1 * nSats[i]);  // 1 drag per satellite
-
-		// int nLocal =numberOfLocalParametersAll[i] - stateVectorSize ;
-		// copy state (6)
-		// normalizationFactorsMerged.segment(static_cast<Eigen::Index>(stateOffst) + i*stateVectorSize,stateVectorSize) = normalizationFactors[i].segment(0,stateVectorSize);
-		// // copy local extras (nLocal)
-		// normalizationFactorsMerged.segment(static_cast<Eigen::Index>(localOffst)+i*nLocal,nLocal) = normalizationFactors[i].segment(stateVectorSize,nLocal);
-		// // Update P0 local-diagonal with normalization
-		// P0_matrices[i].diagonal().segment(stateVectorSize,nLocal).array() = P0_matrices[i].diagonal().segment(stateVectorSize,nLocal).array()/normalizationFactors[i].segment(stateVectorSize,nLocal).array().square();
-	}
+    for (int i = 0; i < nArcs; i++){
+        const int total = numberOfLocalParametersAll[i];
+        if (total % 7 != 0) throw std::runtime_error("Params not divisible by 7 for arc " + std::to_string(i));
+        nSats[i]      = total / 7;
+        stateSizes[i] = static_cast<Index>(6 * nSats[i]);  // 6 per satellite
+        localSizes[i] = static_cast<Index>(1 * nSats[i]);  // 1 drag per satellite
+    }
 
 	// 1) compute totals and offsets
 	Index totalState = 0, totalLocal = 0;
@@ -366,7 +343,7 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	for (int i = 0; i < nArcs; ++i) { stateOffset[i] = acc; acc += stateSizes[i]; }
 	acc = 0;
 	for (int i = 0; i < nArcs; ++i) { localOffset[i] = acc; acc += localSizes[i]; }
-	// 2) copy state and local factors
+
 	// 2) copy states then drags; 3) rescale P0 diagonal on drags
 	#pragma omp parallel for schedule(dynamic)
 	for (int i = 0; i < nArcs; ++i) {
@@ -464,33 +441,8 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 		const auto& H = normalizedDesignMatrices[i];
 		const Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(weightDiagonals[i]);
 		Eigen::MatrixXd P_im = H.transpose() * W * H;
-		resultNormalizedInvCovMatrices[i] = P_im + P0_matrices[i];  // == resultNormalizedInvCovMatrices[i]
+		resultNormalizedInvCovMatrices[i] = P_im + P0_matrices[i];
 	}
-	/*auto arc_sym_residual = [&](const Eigen::MatrixXd& A){
-		double num = (A - A.transpose()).norm();
-		double den = A.norm();
-		return (den > 0.0) ? num/den : num;
-	};
-	#pragma omp parallel for schedule(dynamic)
-	for (int i = 0; i < nArcs; ++i) {
-		const auto& H = normalizedDesignMatrices[i];
-		const Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(weightDiagonals[i]);
-
-		Eigen::MatrixXd Pim = H.transpose() * W * H;
-		Eigen::MatrixXd M = Pim + P0_matrices[i]; // per-arc info
-
-		double res = arc_sym_residual(M);
-		double minDiag = M.diagonal().minCoeff();
-		//std::cerr << "arc " << i << "  sym_res=" << res
-		//		  << "  min_diag=" << minDiag << "\n";
-
-		if (res > 1e-12) {
-			// Temporary symmetrization for diagnostics; comment out once fixed
-			M = 0.5 * (M + M.transpose());
-		}
-		// store M back
-		resultNormalizedInvCovMatrices[i] = std::move(M);
-	}*/
 
 	#if COV_DEBUG
 	for (int i = 0; i < nArcs; ++i) {
@@ -521,9 +473,6 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	std::cout<<"Global parameters values summed up!"<<std::endl;
         std::cout<<"Now assembling the global normalized inverse covariance matrix..."<<std::endl;
 
-	// std::vector<int> prefL(nArcs + 1, 0);
-	// for (int i = 0; i < nArcs; ++i) prefL[i + 1] = prefL[i] + numberOfLocalParametersAll[i]-6;
-	// const int totalLoc  = prefL[nArcs];
 	using SpMat = Eigen::SparseMatrix<double, Eigen::ColMajor>;
 	std::vector<Eigen::Triplet<double>> trips;
 	size_t reserve_nnz = numberOfGlobalParameters * (numberOfGlobalParameters + 1) / 2;
@@ -535,16 +484,9 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 					 + size_t(numberOfGlobalParameters)*stateSizes[i]                  // global–state (lower)
 					 + size_t(numberOfGlobalParameters)*nLocal;             // global–local (lower)
 	}
-	/*const int estPerArc =
-	   stateVectorSize*stateVectorSize
-	   + 2*stateVectorSize*nLocal + nLocal*nLocal
-	   + 2*stateVectorSize*numberOfGlobalParameters
-	   + 2*nLocal*numberOfGlobalParameters;
-*/
-	// trips.reserve(static_cast<size_t>(1.5 * nArcs * estPerArc + numberOfGlobalParameters*numberOfGlobalParameters));
-	// std::vector<Trip> trips;
+	
 	trips.reserve(reserve_nnz);
-	int globalOffset = totalNumberOfLocalParameters;// nArcs*(stateVectorSize+nLocal);
+	int globalOffset = totalNumberOfLocalParameters;
 	Eigen::Index gOffset = totalState + totalLocal;
 	if (globalOffset != gOffset) throw std::runtime_error("offset mismatch");
 
@@ -567,35 +509,17 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
     for (int i = 0; i<nArcs;i++) {
     	const auto& M = resultNormalizedInvCovMatrices[i];
     	const int startOffset = stateOffset[i];
-    	// int nLocal = numberOfLocalParametersAll[i] - stateVectorSize;
     	const int stateVectorSize = stateSizes[i];
     	int nLocal = localSizes[i];
-    	// const int localOffset = nArcs * stateVectorSize + i * nLocal;
     	const int lOff  = totalState + localOffset[i];
-		// Arc-arc block
-    	/*addBlockTriplets(startOffset, startOffset, M.block(0, 0, stateVectorSize, stateVectorSize), trips);
+		
+        addLower(startOffset, startOffset, M.block(0, 0, stateVectorSize, stateVectorSize), trips);
+    	//local-local covariance matrix
+        addLower(lOff, lOff, M.block(stateVectorSize, stateVectorSize, nLocal, nLocal), trips);
         //arc-local covariance matrix
-    	addBlockTriplets(startOffset, localOffset, M.block(0, stateVectorSize, stateVectorSize, nLocal), trips);
-    	//local-arc covariance matrix
-    	addBlockTriplets(localOffset, startOffset, M.block(0, stateVectorSize, stateVectorSize, nLocal).transpose(), trips);
-    	//local-local covariance matrix
-	addBlockTriplets(localOffset, localOffset, M.block(stateVectorSize, stateVectorSize, nLocal, nLocal), trips);
-    	//arc-global covariance matrix
-	addBlockTriplets(startOffset, globalOffset, M.block(0, stateVectorSize + nLocal, stateVectorSize, numberOfGlobalParameters), trips);
-    	//global-arc covariance matrix
-	addBlockTriplets(globalOffset, startOffset, M.block(0, stateVectorSize + nLocal, stateVectorSize, numberOfGlobalParameters).transpose(), trips);
-    	//local-global covariance matrix
-	addBlockTriplets(localOffset, globalOffset, M.block(stateVectorSize, stateVectorSize + nLocal, nLocal, numberOfGlobalParameters), trips);
-    	//global-local covariance matrix
-    	addBlockTriplets(globalOffset, localOffset, M.block(stateVectorSize, stateVectorSize + nLocal, nLocal, numberOfGlobalParameters).transpose(), trips);
-	*/
-	addLower(startOffset, startOffset, M.block(0, 0, stateVectorSize, stateVectorSize), trips);
-    	//local-local covariance matrix
-	addLower(lOff, lOff, M.block(stateVectorSize, stateVectorSize, nLocal, nLocal), trips);
-	//arc-local covariance matrix
     	addLower(lOff, startOffset, M.block(stateVectorSize,0,nLocal,stateVectorSize), trips);
     	//global-arc covariance matrix
-	addLower(globalOffset, startOffset, M.block(stateVectorSize + nLocal,0,numberOfGlobalParameters,stateVectorSize), trips);
+        addLower(globalOffset, startOffset, M.block(stateVectorSize + nLocal,0,numberOfGlobalParameters,stateVectorSize), trips);
     	//global-local covariance matrix
     	addLower(globalOffset, lOff, M.block(stateVectorSize + nLocal,stateVectorSize, numberOfGlobalParameters, nLocal), trips);
 	}
@@ -620,17 +544,10 @@ combinedResults computeCovarianceMatrix(std::vector<double> numberOfLocalParamet
 	std::cerr << "min diagonal: " << minDiagonal(P_global_sparse) << " (should be > 0 for SPD)\n";
 	#endif
 	// --- Factor SPD matrix with sparse Cholesky ---
-	// If you have CHOLMOD or Pardiso, switch to those for better performance.
-	//Eigen::SimplicialLDLT<SpMat> solver;
-	//solver.analyzePattern(P_global_sparse);
-	//solver.factorize(P_global_sparse);
-	//if (solver.info() != Eigen::Success) {
-	//	throw std::runtime_error("Cholesky factorization failed (matrix may be singular or not SPD).");
-	//}
 	const int n = total_size;
 	const int BlockSize = 512; // tune based on memory/cache
 	Eigen::MatrixXd NormalizedCovarianceMatrixSummed(n, n);
-	NormalizedCovarianceMatrixSummed.setZero(); // ensure init
+	NormalizedCovarianceMatrixSummed.setZero();
 
 	// Solve in column blocks: P * X = I_block
 	for (int col = 0; col < n; col += BlockSize) {
@@ -666,7 +583,7 @@ static void printUsage(const char* exe)
 int main(int argc, char* argv[])
 {
 	Eigen::initParallel();    // initialize Eigen's internal threading
-    //std::string outputFile;
+    
     std::string baseDir;
     int start =0;
     int step =-1;
@@ -687,7 +604,6 @@ int main(int argc, char* argv[])
     }
     if (baseDir.empty() || numArcs <= 0)
     { std:: cerr << "Provide --base-dir AND --num-arcs\n"; printUsage(argv[0]); return 1;}
-    //if (outputFile.empty()) { std::cerr << "Missing --ouput\n"; printUsage(argv[0]); return 1;}
     if (start >= numArcs) throw std::runtime_error("--start >= --num-arcs");
 
     bool hasStep = (step>0);
@@ -714,7 +630,6 @@ int main(int argc, char* argv[])
 
     combinedResults res = computeCovarianceMatrix(numberOfLocalParametersAll, numArcs, normalizedDesignMatrices, unnormalizedDesignMatrices, normalizationFactors, weightDiagonals,P0_matrices);
     saveMatrixBinary(baseDir + "/resultedUnnormalizedCovarianceMatrix" + fileTag + ".bin",res.resultedUnnormalizedCovarianceMatrix);
-    //saveMatrixBinary(baseDir + "/suminverseNormalizedCovarianceMatrix" + fileTag + ".bin",res.P_global_sparse);
 
 
 }
