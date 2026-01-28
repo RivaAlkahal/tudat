@@ -979,8 +979,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
 
         printEstimatableParameterEntries( parametersToEstimate );
         int lengthOfTimeListEmp = initial_times_list_emp.size();
-        //int numberOfLocalParameters = 7;//+2;
-        int numberOfLocalParameters = 7*spacecraftName.size();//+lengthOfTimeListEmp*4;
+        int numberOfLocalParameters = 7*spacecraftName.size();
 
         const int DIAGONALS = numberOfLocalParameters;
         Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(numberOfParameters, numberOfParameters);
