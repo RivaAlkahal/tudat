@@ -505,7 +505,7 @@ void runCovarianceAnalysisForArc(const ArcConfig& config,  std::string saveDirec
                         baseFrameOrigin, baseFrameOrientation, ephemerisTimeStepPlanets );
         std::cout<<"Body Settings created"<<std::endl;
         bodySettings.at( "Earth" )->groundStationSettings = getDsnStationSettings( );
-        std::string filename = "/home/ralkahal/new-tudat-tests/dtm-mars";
+        std::string filename = "/dtm-mars";
         bodySettings.at( "Mars" )->atmosphereSettings = marsDtmAtmosphereSettings( filename, 3378.0E3);
 
         // loop over spacecrafts if needed
